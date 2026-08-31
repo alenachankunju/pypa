@@ -1,0 +1,40 @@
+# Netlify configuration for the PYPA Marking System API.
+#
+# The frontend deploys separately to Vercel; this site serves only /api.
+
+[build]
+  command = "npm run build"
+  publish = "public"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "22"
+  # Native modules that must not be bundled by esbuild — they load platform
+  # binaries at runtime (argon2 for password hashing, sharp for image
+  # re-encoding on upload, per FSD 11.2).
+  AWS_LAMBDA_JS_RUNTIME = "nodejs22.x"
+
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["@node-rs/argon2", "sharp", "pg-native"]
+  included_files = ["migrations/**"]
+
+[functions.api]
+  # FSD 11.1 budgets 5 seconds for a standard report and 10 for a full-event
+  # recomputation, so the default 10-second cap is raised.
+  timeout = 26
+
+# Every API path routes to the single Express handler.
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/api/:splat"
+  status = 200
+  force = true
+
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "no-referrer"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"

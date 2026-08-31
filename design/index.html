@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PYPA Marking System — Design Mocks</title>
+<link rel="stylesheet" href="../frontend/src/styles/base.css">
+<link rel="stylesheet" href="assets/mock.css">
+<style>
+  body{max-width:960px;margin:0 auto;padding:32px 20px 80px}
+  .mock-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+  .mock-list a{display:block;padding:14px 16px;border:1px solid var(--border-subtle);border-radius:12px;background:var(--surface-card);text-decoration:none;color:var(--text-primary)}
+  .mock-list a:hover{background:var(--surface-hover)}
+  .mock-list .id{font-family:var(--font-mono);font-weight:700;color:var(--accent-text);font-size:.8rem}
+</style>
+</head>
+<body>
+  <div class="mock-toolbar" style="margin:-32px -20px 24px">
+    <strong>Design Mocks</strong>
+    <button id="mock-theme-toggle" onclick="mockToggleTheme()">Theme: system</button>
+  </div>
+
+  <h1 class="page-title">PYPA Marking System — Screen Designs</h1>
+  <p class="muted" style="margin:8px 0 24px">
+    Static previews built directly against the production design tokens
+    (<code>frontend/src/styles/tokens.css</code>) and component classes
+    (<code>frontend/src/styles/base.css</code>) — what you see here is exactly
+    what the built React app renders, not an approximation. Use the theme
+    button on each page to check light and dark (FSD 10.1).
+  </p>
+
+  <h2 class="text-lg strong" style="margin-bottom:12px">Judge application — FSD §6</h2>
+  <div class="mock-list" style="margin-bottom:32px">
+    <a href="judge/j1-login.html"><span class="id">J1</span><br>Login</a>
+    <a href="judge/j2-session-selection.html"><span class="id">J2</span><br>Session selection</a>
+    <a href="judge/j3-now-on-stage.html"><span class="id">J3</span><br>Now on stage</a>
+    <a href="judge/j3-now-on-stage-scored.html"><span class="id">J3b</span><br>Now on stage (scored)</a>
+    <a href="judge/j4-search.html"><span class="id">J4</span><br>Search</a>
+    <a href="judge/j4-search-not-found.html"><span class="id">J4b</span><br>Search (not found)</a>
+    <a href="judge/j5-member-items.html"><span class="id">J5</span><br>Member items</a>
+    <a href="judge/j6-mark-entry.html"><span class="id">J6</span><br>Mark entry</a>
+    <a href="judge/j6b-mark-entry-mismatch.html"><span class="id">J6b</span><br>Mark entry (item mismatch)</a>
+    <a href="judge/j6c-mark-entry-criteria.html"><span class="id">J6c</span><br>Mark entry (criteria)</a>
+    <a href="judge/j7-confirm-sheet.html"><span class="id">J7</span><br>Confirm sheet</a>
+    <a href="judge/j8-success.html"><span class="id">J8</span><br>Success</a>
+    <a href="judge/j8b-success-offline.html"><span class="id">J8b</span><br>Success (queued offline)</a>
+    <a href="judge/j9-my-marks.html"><span class="id">J9</span><br>My marks</a>
+    <a href="judge/j10-profile.html"><span class="id">J10</span><br>Profile</a>
+  </div>
+
+  <h2 class="text-lg strong" style="margin-bottom:12px">Administrator console — priority screens (FSD §18.3)</h2>
+  <div class="mock-list">
+    <a href="admin/a1-dashboard.html"><span class="id">A1</span><br>Dashboard</a>
+    <a href="admin/a5-a6-members.html"><span class="id">A5·A6</span><br>Member list / form</a>
+    <a href="admin/a12-live-console.html"><span class="id">A12</span><br>Live judging console</a>
+    <a href="admin/a14-item-result.html"><span class="id">A14</span><br>Item result</a>
+    <a href="admin/a15-leaderboard.html"><span class="id">A15</span><br>Church leaderboard</a>
+  </div>
+
+  <p class="text-xs subtle" style="margin-top:32px">
+    The remaining fourteen admin screens (A2–A4, A7–A11, A13, A16–A19) follow the
+    same component library and are implemented in the working React app under
+    <code>frontend/src/features/admin/</code> — see those files for the built
+    equivalent of each.
+  </p>
+
+<script src="assets/mock.js"></script>
+</body>
+</html>

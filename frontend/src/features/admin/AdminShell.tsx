@@ -1,0 +1,183 @@
+/**
+ * Admin shell (FSD 10.3): desktop left sidebar, mobile bottom bar of five with
+ * everything else behind "More".
+ */
+import { useState } from 'react';
+import { NavLink, Outlet } from 'react-router-dom';
+import { useAuth } from '../../lib/auth';
+import { Capability } from '../../lib/auth';
+import { Sheet } from '../../components/ui';
+
+interface NavItem {
+  to: string;
+  label: string;
+  icon: string;
+  capability?: string;
+  end?: boolean;
+}
+
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+const GROUPS: NavGroup[] = [
+  {
+    label: 'Overview',
+    items: [{ to: '/admin', label: 'Dashboard', icon: '◧', end: true }],
+  },
+  {
+    label: 'Live',
+    items: [{ to: '/admin/live', label: 'Live console', icon: '●', capability: Capability.VIEW_SCORE_PROGRESS }],
+  },
+  {
+    label: 'Data',
+    items: [
+      { to: '/admin/churches', label: 'Churches', icon: '⛪', capability: Capability.MANAGE_CHURCHES },
+      { to: '/admin/categories', label: 'Categories', icon: '▤', capability: Capability.MANAGE_CATEGORIES },
+      { to: '/admin/items', label: 'Items', icon: '♪', capability: Capability.MANAGE_ITEMS },
+      { to: '/admin/members', label: 'Members', icon: '☺', capability: Capability.MANAGE_MEMBERS },
+      { to: '/admin/registrations', label: 'Registrations', icon: '⊞', capability: Capability.MANAGE_REGISTRATIONS },
+    ],
+  },
+  {
+    label: 'Results',
+    items: [
+      { to: '/admin/results', label: 'Item results', icon: '☰', capability: Capability.VIEW_PROVISIONAL_RESULTS },
+      { to: '/admin/leaderboard', label: 'Church leaderboard', icon: '🏆', capability: Capability.VIEW_PROVISIONAL_RESULTS },
+      { to: '/admin/champions', label: 'Champions', icon: '★', capability: Capability.VIEW_PROVISIONAL_RESULTS },
+    ],
+  },
+  {
+    label: 'More',
+    items: [
+      { to: '/admin/judges', label: 'Judges', icon: '⚖', capability: Capability.MANAGE_JUDGE_ACCOUNTS },
+      { to: '/admin/panels', label: 'Panels', icon: '⚑', capability: Capability.MANAGE_PANELS },
+      { to: '/admin/sessions', label: 'Sessions', icon: '⏱', capability: Capability.MANAGE_SESSIONS },
+      { to: '/admin/config', label: 'Scoring config', icon: '⚙', capability: Capability.CONFIGURE_SCORING },
+      { to: '/admin/reports', label: 'Reports', icon: '⎙', capability: Capability.EXPORT_REPORTS },
+      { to: '/admin/audit', label: 'Audit log', icon: '≡', capability: Capability.VIEW_AUDIT_LOG },
+      { to: '/admin/settings', label: 'Settings', icon: '⚒', capability: Capability.MANAGE_SETTINGS },
+    ],
+  },
+];
+
+/** Five primary items for the mobile bottom bar; the rest live behind More. */
+const MOBILE_PRIMARY: NavItem[] = [
+  { to: '/admin', label: 'Home', icon: '◧', end: true },
+  { to: '/admin/live', label: 'Live', icon: '●', capability: Capability.VIEW_SCORE_PROGRESS },
+  { to: '/admin/members', label: 'Members', icon: '☺', capability: Capability.MANAGE_MEMBERS },
+  { to: '/admin/results', label: 'Results', icon: '☰', capability: Capability.VIEW_PROVISIONAL_RESULTS },
+];
+
+export function AdminShell() {
+  const { user, can, logout } = useAuth();
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  const visibleGroups = GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !item.capability || can(item.capability)),
+  })).filter((group) => group.items.length > 0);
+
+  return (
+    <div className="admin-shell">
+      <aside className="admin-sidebar">
+        <div className="row" style={{ padding: 'var(--space-2) var(--space-3)', marginBottom: 'var(--space-3)' }}>
+          <div
+            aria-hidden="true"
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--accent)',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 700,
+            }}
+          >
+            P
+          </div>
+          <div style={{ lineHeight: 1.2 }}>
+            <div className="text-sm strong">PYPA Marking</div>
+            <div className="text-xs muted">{user?.role.replace('_', ' ')}</div>
+          </div>
+        </div>
+
+        {visibleGroups.map((group) => (
+          <div className="nav-group" key={group.label}>
+            <div className="nav-group-label">{group.label}</div>
+            {group.items.map((item) => (
+              <NavLink key={item.to} to={item.to} end={item.end} className="nav-link">
+                <span aria-hidden="true">{item.icon}</span>
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
+        ))}
+
+        <div className="nav-group">
+          <button type="button" className="nav-link" style={{ width: '100%' }} onClick={() => void logout()}>
+            <span aria-hidden="true">⎋</span>
+            Sign out
+          </button>
+        </div>
+      </aside>
+
+      <div className="admin-main">
+        <header className="app-header no-print">
+          <div className="header-context">
+            <strong>{user?.fullName}</strong>
+            <span>{user?.role.replace('_', ' ')}</span>
+          </div>
+        </header>
+        <div className="container" style={{ paddingTop: 'var(--space-5)' }}>
+          <Outlet />
+        </div>
+      </div>
+
+      <nav className="bottom-nav admin-nav no-print" aria-label="Admin navigation">
+        {MOBILE_PRIMARY.filter((item) => !item.capability || can(item.capability)).map((item) => (
+          <NavLink key={item.to} to={item.to} end={item.end} className="bottom-nav-item">
+            <span className="bottom-nav-icon" aria-hidden="true">
+              {item.icon}
+            </span>
+            {item.label}
+          </NavLink>
+        ))}
+        <button type="button" className="bottom-nav-item" onClick={() => setMoreOpen(true)}>
+          <span className="bottom-nav-icon" aria-hidden="true">
+            ⋯
+          </span>
+          More
+        </button>
+      </nav>
+
+      <Sheet open={moreOpen} onClose={() => setMoreOpen(false)} title="More">
+        <div className="stack">
+          {visibleGroups.map((group) => (
+            <div key={group.label} className="nav-group">
+              <div className="nav-group-label">{group.label}</div>
+              {group.items.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  className="nav-link"
+                  onClick={() => setMoreOpen(false)}
+                >
+                  <span aria-hidden="true">{item.icon}</span>
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
+          ))}
+          <button type="button" className="btn btn-danger btn-block" onClick={() => void logout()}>
+            Sign out
+          </button>
+        </div>
+      </Sheet>
+    </div>
+  );
+}
