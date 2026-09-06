@@ -553,6 +553,14 @@ export function memberRoutes(): Router {
    * "The multi-select only offers items the member is eligible for, based on
    * category and gender, unless the administrator switches on 'show ineligible
    * items'."
+   *
+   * INDIVIDUAL items only: this drives a single member's own registration, and
+   * createRegistration() (registrations.service.ts) refuses a GROUP item
+   * outright regardless of category/gender fit — ADM-06-04 registers those as
+   * a team instead, with its own member roster. A GROUP item like "open to all
+   * categories" would otherwise pass this endpoint's category/gender check for
+   * nearly every member and show up as "eligible" here despite never actually
+   * being addable this way.
    */
   router.get(
     '/:id/eligible-items',
@@ -592,6 +600,7 @@ export function memberRoutes(): Router {
           .where('i.event_id', '=', req.eventId!)
           .where('i.status', '=', 'ACTIVE')
           .where('i.is_active', '=', true)
+          .where('i.type', '=', 'INDIVIDUAL')
           .orderBy('i.display_order')
           .orderBy('i.name')
           .execute(),

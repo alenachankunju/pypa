@@ -436,10 +436,15 @@ export function Members() {
                       Show ineligible
                     </label>
                   </div>
+                  <p className="text-xs muted" style={{ marginTop: 'calc(var(--space-1) * -1)' }}>
+                    Individual items only — group items are entered as a team from the Registrations screen (ADM-06-04).
+                  </p>
                   <div className="stack-sm" style={{ maxHeight: 240, overflowY: 'auto' }}>
                     {eligibleItems.filter((i) => !i.alreadyRegistered).length === 0 && (
                       <p className="text-sm muted">
-                        {showIneligible ? 'No items left to add.' : 'No further eligible items — try "Show ineligible".'}
+                        {showIneligible
+                          ? 'No individual items left to add.'
+                          : `No individual items are currently open to this member${editing.categoryName ? `'s category (${editing.categoryName as string})` : ''} — try "Show ineligible" to see why.`}
                       </p>
                     )}
                     {eligibleItems
