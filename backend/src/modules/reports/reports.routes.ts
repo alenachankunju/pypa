@@ -1,7 +1,6 @@
 /**
- * Report generation (FSD 5.13). Real PDF/Excel output for the four highest-
- * value reports; the rest of the catalogue (consolidated results, call
- * sheets, certificates, badges) remains the Phase 4 placeholder in Reports.tsx.
+ * Report generation (FSD 5.13). Real PDF/Excel output for every catalogue
+ * report except certificates and badges, which are PDF-only print layouts.
  */
 import { Router } from 'express';
 import { z } from 'zod';
@@ -10,10 +9,15 @@ import { Capability, requireCapability } from '../../middleware/authorize.js';
 import { requireActiveEvent } from '../../middleware/eventContext.js';
 import { validate } from '../../middleware/validate.js';
 import {
+  badgeSheetReport,
+  certificatesReport,
   championSheet,
+  churchDetailSheet,
   churchLeaderboardReport,
+  consolidatedResultsReport,
   itemResultSheet,
   judgeActivityReport,
+  participationListReport,
   type ReportFormat,
 } from '../../services/reports/reports.js';
 import { asyncHandler } from '../../utils/http.js';
@@ -69,6 +73,56 @@ export function reportRoutes(): Router {
       const { format } = req.query as unknown as { format: ReportFormat };
       const event = activeEvent(res);
       send(res, await judgeActivityReport(event.id, event.name, format));
+    }),
+  );
+
+  router.get(
+    '/consolidated',
+    validate({ query: formatQuery }),
+    asyncHandler(async (req, res) => {
+      const { format } = req.query as unknown as { format: ReportFormat };
+      const event = activeEvent(res);
+      send(res, await consolidatedResultsReport(event.id, event.name, format));
+    }),
+  );
+
+  router.get(
+    '/churches/:churchId',
+    validate({ params: z.object({ churchId: z.string().uuid() }), query: formatQuery }),
+    asyncHandler(async (req, res) => {
+      const { churchId } = req.params as { churchId: string };
+      const { format } = req.query as unknown as { format: ReportFormat };
+      const event = activeEvent(res);
+      send(res, await churchDetailSheet(churchId, event.id, event.name, format));
+    }),
+  );
+
+  router.get(
+    '/call-sheet/:itemId',
+    validate({ params: z.object({ itemId: z.string().uuid() }), query: formatQuery }),
+    asyncHandler(async (req, res) => {
+      const { itemId } = req.params as { itemId: string };
+      const { format } = req.query as unknown as { format: ReportFormat };
+      const event = activeEvent(res);
+      send(res, await participationListReport(itemId, event.name, format));
+    }),
+  );
+
+  router.get(
+    '/certificates/:itemId',
+    validate({ params: z.object({ itemId: z.string().uuid() }) }),
+    asyncHandler(async (req, res) => {
+      const { itemId } = req.params as { itemId: string };
+      const event = activeEvent(res);
+      send(res, await certificatesReport(itemId, event.name));
+    }),
+  );
+
+  router.get(
+    '/badges',
+    asyncHandler(async (req, res) => {
+      const event = activeEvent(res);
+      send(res, await badgeSheetReport(event.id, event.name));
     }),
   );
 

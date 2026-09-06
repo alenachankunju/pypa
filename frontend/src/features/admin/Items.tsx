@@ -258,11 +258,9 @@ export function Items() {
                               Cancel
                             </button>
                           )}
-                          {item.performanceCount === 0 && (
-                            <button type="button" className="btn btn-sm btn-danger" onClick={() => setDeleting(item)}>
-                              Delete
-                            </button>
-                          )}
+                          <button type="button" className="btn btn-sm btn-danger" onClick={() => setDeleting(item)}>
+                            Delete
+                          </button>
                         </>
                       )}
                       <Link to={`/admin/results/${item.id}`} className="btn btn-sm btn-ghost">

@@ -1,12 +1,7 @@
 /**
- * Screen A17 — Reports (FSD 5.13).
- *
- * The exceptions report (ADM-10-04) and four of the nine catalogue reports
- * (item result sheet, church leaderboard, individual champion sheet, judge
- * activity) generate real PDF/Excel output. The rest — consolidated results,
- * participation/call sheet, certificates, badge sheet — remain the Phase 4
- * placeholder (FSD 16): the data APIs exist, the file-rendering layer for
- * those specific ones doesn't yet.
+ * Screen A17 — Reports (FSD 5.13). All nine catalogue reports generate real
+ * output now; certificates and badges are PDF-only print layouts (no
+ * barcode/QR — that needs a dedicated library this build doesn't install).
  */
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
@@ -24,17 +19,13 @@ interface ItemOption {
   id: string;
   name: string;
 }
+interface ChurchOption {
+  id: string;
+  name: string;
+}
 
-const PLACEHOLDER_REPORTS = [
-  'Consolidated results',
-  'Church detail sheet',
-  'Participation list / call sheet',
-  'Certificates',
-  'Badge sheet',
-];
-
-async function downloadReport(path: string, format: 'pdf' | 'xlsx', fallbackName: string) {
-  const { blob, filename } = await api.downloadFile(path, { format });
+async function downloadReport(path: string, format: 'pdf' | 'xlsx' | undefined, fallbackName: string) {
+  const { blob, filename } = await api.downloadFile(path, format ? { format } : undefined);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -48,6 +39,8 @@ export function Reports() {
   const [error, setError] = useState<unknown>(null);
   const [items, setItems] = useState<ItemOption[]>([]);
   const [selectedItemId, setSelectedItemId] = useState('');
+  const [churches, setChurches] = useState<ChurchOption[]>([]);
+  const [selectedChurchId, setSelectedChurchId] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
@@ -59,9 +52,16 @@ export function Reports() {
         if (data.length > 0) setSelectedItemId(data[0]!.id);
       })
       .catch(() => undefined);
+    api
+      .get<ChurchOption[]>('/api/admin/churches', { pageSize: 200 })
+      .then((data) => {
+        setChurches(data);
+        if (data.length > 0) setSelectedChurchId(data[0]!.id);
+      })
+      .catch(() => undefined);
   }, []);
 
-  async function run(key: string, path: string, format: 'pdf' | 'xlsx', filename: string) {
+  async function run(key: string, path: string, format: 'pdf' | 'xlsx' | undefined, filename: string) {
     setBusy(key);
     try {
       await downloadReport(path, format, filename);
@@ -79,7 +79,7 @@ export function Reports() {
       <PageHeader title="Reports" subtitle="Export result sheets, leaderboards and exception reports" />
 
       <div className="card stack">
-        <p className="eyebrow">Item result sheet</p>
+        <p className="eyebrow">Per-item reports</p>
         <Field label="Item">
           <select className="select" value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)}>
             {items.map((i) => (
@@ -89,29 +89,100 @@ export function Reports() {
             ))}
           </select>
         </Field>
+        <div className="stack-sm">
+          <div className="row-between">
+            <span className="text-sm strong">Item result sheet</span>
+            <div className="row">
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                disabled={!selectedItemId || busy !== null}
+                onClick={() => void run('item-pdf', `/api/admin/reports/items/${selectedItemId}`, 'pdf', 'item-result.pdf')}
+              >
+                {busy === 'item-pdf' ? '…' : 'PDF'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                disabled={!selectedItemId || busy !== null}
+                onClick={() => void run('item-xlsx', `/api/admin/reports/items/${selectedItemId}`, 'xlsx', 'item-result.xlsx')}
+              >
+                {busy === 'item-xlsx' ? '…' : 'Excel'}
+              </button>
+            </div>
+          </div>
+          <div className="row-between">
+            <span className="text-sm strong">Participation list / call sheet</span>
+            <div className="row">
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                disabled={!selectedItemId || busy !== null}
+                onClick={() => void run('call-pdf', `/api/admin/reports/call-sheet/${selectedItemId}`, 'pdf', 'call-sheet.pdf')}
+              >
+                {busy === 'call-pdf' ? '…' : 'PDF'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                disabled={!selectedItemId || busy !== null}
+                onClick={() => void run('call-xlsx', `/api/admin/reports/call-sheet/${selectedItemId}`, 'xlsx', 'call-sheet.xlsx')}
+              >
+                {busy === 'call-xlsx' ? '…' : 'Excel'}
+              </button>
+            </div>
+          </div>
+          <div className="row-between">
+            <span className="text-sm strong">Certificates</span>
+            <span className="text-xs muted" style={{ marginRight: 'auto', marginLeft: 'var(--space-3)' }}>
+              One per 1st/2nd/3rd place
+            </span>
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              disabled={!selectedItemId || busy !== null}
+              onClick={() => void run('cert-pdf', `/api/admin/reports/certificates/${selectedItemId}`, undefined, 'certificates.pdf')}
+            >
+              {busy === 'cert-pdf' ? '…' : 'PDF'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="card stack">
+        <p className="eyebrow">Church detail sheet</p>
+        <Field label="Church">
+          <select className="select" value={selectedChurchId} onChange={(e) => setSelectedChurchId(e.target.value)}>
+            {churches.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </Field>
         <div className="row">
           <button
             type="button"
             className="btn btn-secondary"
-            disabled={!selectedItemId || busy !== null}
-            onClick={() => void run('item-pdf', `/api/admin/reports/items/${selectedItemId}`, 'pdf', 'item-result.pdf')}
+            disabled={!selectedChurchId || busy !== null}
+            onClick={() => void run('church-detail-pdf', `/api/admin/reports/churches/${selectedChurchId}`, 'pdf', 'church-detail.pdf')}
           >
-            {busy === 'item-pdf' ? 'Generating…' : 'Download PDF'}
+            {busy === 'church-detail-pdf' ? 'Generating…' : 'Download PDF'}
           </button>
           <button
             type="button"
             className="btn btn-secondary"
-            disabled={!selectedItemId || busy !== null}
-            onClick={() => void run('item-xlsx', `/api/admin/reports/items/${selectedItemId}`, 'xlsx', 'item-result.xlsx')}
+            disabled={!selectedChurchId || busy !== null}
+            onClick={() => void run('church-detail-xlsx', `/api/admin/reports/churches/${selectedChurchId}`, 'xlsx', 'church-detail.xlsx')}
           >
-            {busy === 'item-xlsx' ? 'Generating…' : 'Download Excel'}
+            {busy === 'church-detail-xlsx' ? 'Generating…' : 'Download Excel'}
           </button>
         </div>
       </div>
 
       <div className="card">
         <p className="eyebrow" style={{ marginBottom: 'var(--space-3)' }}>
-          Available reports
+          Event-wide reports
         </p>
         <div className="grid grid-3">
           <ReportTile
@@ -138,12 +209,26 @@ export function Reports() {
             pdfKey="judge-pdf"
             xlsxKey="judge-xlsx"
           />
-          {PLACEHOLDER_REPORTS.map((name) => (
-            <div key={name} className="card row-between" style={{ background: 'var(--surface-sunken)' }}>
-              <span className="text-sm">{name}</span>
-              <span className="badge badge-neutral">Not yet built</span>
-            </div>
-          ))}
+          <ReportTile
+            name="Consolidated results"
+            busy={busy}
+            onPdf={() => void run('consolidated-pdf', '/api/admin/reports/consolidated', 'pdf', 'consolidated-results.pdf')}
+            onXlsx={() => void run('consolidated-xlsx', '/api/admin/reports/consolidated', 'xlsx', 'consolidated-results.xlsx')}
+            pdfKey="consolidated-pdf"
+            xlsxKey="consolidated-xlsx"
+          />
+          <div className="card stack-sm" style={{ background: 'var(--surface-sunken)' }}>
+            <span className="text-sm strong">Badge sheet</span>
+            <span className="text-xs muted">Chest number, name, church — no barcode/QR (not installed)</span>
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              disabled={busy !== null}
+              onClick={() => void run('badges-pdf', '/api/admin/reports/badges', undefined, 'badge-sheet.pdf')}
+            >
+              {busy === 'badges-pdf' ? '…' : 'PDF'}
+            </button>
+          </div>
         </div>
       </div>
 

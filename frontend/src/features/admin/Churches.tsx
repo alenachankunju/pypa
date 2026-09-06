@@ -203,11 +203,9 @@ export function Churches() {
                               Reactivate
                             </button>
                           )}
-                          {c.memberCount === 0 && (
-                            <button type="button" className="btn btn-sm btn-danger" onClick={() => setDeleting(c)}>
-                              Delete
-                            </button>
-                          )}
+                          <button type="button" className="btn btn-sm btn-danger" onClick={() => setDeleting(c)}>
+                            Delete
+                          </button>
                         </>
                       )}
                     </td>

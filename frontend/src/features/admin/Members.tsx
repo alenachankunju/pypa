@@ -1,8 +1,11 @@
 /**
  * Screens A5/A6 — Member list and form (FSD 5.5).
  *
- * ADM-05-03/04: item multi-select, offering only eligible items by default,
- * with an override path (reason required) once "show ineligible" is on.
+ * ADM-05-03/04: items are added one at a time via the eligible-items list,
+ * offering only eligible items by default, with an override path (reason
+ * required) once "show ineligible" is on. This only works once the member
+ * has an id — for a brand-new member, save the base details first (the form
+ * stays open, now in edit mode), then add items below.
  * ADM-05-02: category override, reason required when it differs from the
  * derived category (FSD 4.2.3).
  * ADM-05-05: possible-duplicate confirmation.
@@ -60,14 +63,15 @@ export function Members() {
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [eligibleItems, setEligibleItems] = useState<EligibleItem[]>([]);
-  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [showIneligible, setShowIneligible] = useState(false);
-  const [eligibilityOverrideReason, setEligibilityOverrideReason] = useState('');
   const [overrideCategory, setOverrideCategory] = useState(false);
   const [categoryOverrideReason, setCategoryOverrideReason] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<unknown>(null);
   const [deactivating, setDeactivating] = useState<MemberRow | null>(null);
+
+  const [addBusy, setAddBusy] = useState(false);
+  const [ineligibleConfirm, setIneligibleConfirm] = useState<{ itemId: string; itemName: string; message: string; reason: string } | null>(null);
 
   const [duplicateConfirm, setDuplicateConfirm] = useState<{ message: string } | null>(null);
   const [categoryChangeConfirm, setCategoryChangeConfirm] = useState<{
@@ -96,32 +100,32 @@ export function Members() {
 
   function startCreate() {
     setEditing({ isActive: true });
-    setSelectedItems(new Set());
     setEligibleItems([]);
     setOverrideCategory(false);
     setCategoryOverrideReason('');
-    setEligibilityOverrideReason('');
   }
 
-  async function startEdit(member: MemberRow) {
-    const full = await api.get<Record<string, unknown>>(`/api/admin/members/${member.id}`);
+  async function loadMember(id: string) {
+    const full = await api.get<Record<string, unknown>>(`/api/admin/members/${id}`);
     setEditing(full);
-    const registrations = (full.registrations as { item_id: string; status: string }[] | undefined) ?? [];
-    setSelectedItems(new Set(registrations.filter((r) => r.status === 'REGISTERED').map((r) => r.item_id)));
     setOverrideCategory(Boolean(full.isCategoryOverridden));
     setCategoryOverrideReason((full.category_override_reason as string) ?? '');
-    setEligibilityOverrideReason('');
   }
 
-  // Load the eligible-item list once the church/category-relevant fields are known.
-  useEffect(() => {
-    if (!editing?.id) return;
+  function loadEligibleItems(memberId: string) {
     api
-      .get<EligibleItem[]>(`/api/admin/members/${editing.id}/eligible-items`, {
+      .get<EligibleItem[]>(`/api/admin/members/${memberId}/eligible-items`, {
         includeIneligible: String(showIneligible),
       })
       .then(setEligibleItems)
       .catch(() => undefined);
+  }
+
+  useEffect(() => {
+    const id = editing?.id as string | undefined;
+    if (!id) return;
+    loadEligibleItems(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing?.id, showIneligible]);
 
   async function save(extra?: { confirmPossibleDuplicate?: boolean; confirmCategoryChange?: boolean }) {
@@ -129,10 +133,6 @@ export function Members() {
     setSaving(true);
     setSaveError(null);
     try {
-      const selectedIneligible = Array.from(selectedItems).some(
-        (id) => eligibleItems.find((i) => i.id === id)?.eligible === false,
-      );
-
       const payload: Record<string, unknown> = {
         chestNumber: editing.chestNumber ?? editing.chest_number,
         fullName: editing.fullName ?? editing.full_name,
@@ -141,8 +141,6 @@ export function Members() {
         churchId: editing.churchId ?? editing.church_id,
         photoPath: editing.photoPath ?? editing.photo_path,
         mobile: editing.mobile,
-        itemIds: editing.id ? undefined : Array.from(selectedItems),
-        eligibilityOverrideReason: selectedIneligible ? eligibilityOverrideReason : undefined,
         ...(overrideCategory
           ? { categoryId: editing.categoryId ?? editing.category_id, categoryOverrideReason: categoryOverrideReason || undefined }
           : {}),
@@ -151,12 +149,17 @@ export function Members() {
 
       if (editing.id) {
         await api.patch(`/api/admin/members/${editing.id}`, payload);
+        setDuplicateConfirm(null);
+        setCategoryChangeConfirm(null);
+        await loadMember(editing.id as string);
+        setNotice('Saved.');
       } else {
-        await api.post('/api/admin/members', payload);
+        const created = await api.post<{ id: string }>('/api/admin/members', payload);
+        setDuplicateConfirm(null);
+        setCategoryChangeConfirm(null);
+        await loadMember(created.id);
+        setNotice(`${payload.fullName as string} created — add items below, then Done.`);
       }
-      setEditing(null);
-      setDuplicateConfirm(null);
-      setCategoryChangeConfirm(null);
       load();
     } catch (err) {
       if (err instanceof ApiError && err.code === 'CONFLICT') {
@@ -173,6 +176,25 @@ export function Members() {
       setSaveError(err);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function addItem(itemId: string, itemName: string, eligibilityOverrideReason?: string) {
+    if (!editing?.id) return;
+    setAddBusy(true);
+    try {
+      await api.post('/api/admin/registrations', { itemId, memberId: editing.id, eligibilityOverrideReason });
+      setIneligibleConfirm(null);
+      await loadMember(editing.id as string);
+      loadEligibleItems(editing.id as string);
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'INELIGIBLE_ITEM') {
+        setIneligibleConfirm({ itemId, itemName, message: err.message, reason: '' });
+      } else {
+        setSaveError(err);
+      }
+    } finally {
+      setAddBusy(false);
     }
   }
 
@@ -268,7 +290,7 @@ export function Members() {
                     <td className="row row-wrap">
                       {can('MANAGE_MEMBERS') && (
                         <>
-                          <button type="button" className="btn btn-sm btn-secondary" onClick={() => void startEdit(m)}>
+                          <button type="button" className="btn btn-sm btn-secondary" onClick={() => void loadMember(m.id)}>
                             Edit
                           </button>
                           {m.isActive ? (
@@ -377,80 +399,102 @@ export function Members() {
               )}
             </div>
 
-            {!editing.id && (
-              <div className="field">
-                <div className="row-between">
-                  <label className="label">Items</label>
-                  <label className="text-xs row">
-                    <input
-                      type="checkbox"
-                      checked={showIneligible}
-                      onChange={(e) => setShowIneligible(e.target.checked)}
-                    />
-                    Show ineligible
-                  </label>
-                </div>
-                <div className="stack-sm" style={{ maxHeight: 240, overflowY: 'auto' }}>
-                  {eligibleItems.length === 0 && <p className="text-sm muted">Save the church first to see eligible items.</p>}
-                  {eligibleItems.map((item) => (
-                    <label
-                      key={item.id}
-                      className="row"
-                      style={{ opacity: item.eligible ? 1 : 0.7 }}
-                      title={item.problems.map((p) => p.message).join(' ')}
-                    >
-                      <input
-                        type="checkbox"
-                        disabled={!item.eligible && !showIneligible}
-                        checked={selectedItems.has(item.id)}
-                        onChange={(e) =>
-                          setSelectedItems((prev) => {
-                            const next = new Set(prev);
-                            if (e.target.checked) next.add(item.id);
-                            else next.delete(item.id);
-                            return next;
-                          })
-                        }
-                      />
-                      {item.name} ({item.code})
-                      {!item.eligible && <span className="badge badge-warning" style={{ marginLeft: 6 }}>Ineligible</span>}
-                    </label>
-                  ))}
-                </div>
-                {showIneligible && Array.from(selectedItems).some((id) => eligibleItems.find((i) => i.id === id)?.eligible === false) && (
-                  <Field label="Reason for ineligible selection" required hint="ADM-05-04: required whenever an ineligible item is selected">
-                    <textarea
-                      className="textarea"
-                      value={eligibilityOverrideReason}
-                      onChange={(e) => setEligibilityOverrideReason(e.target.value)}
-                    />
-                  </Field>
-                )}
-              </div>
-            )}
-
-            {editing.registrations != null && Array.isArray(editing.registrations) && (
-              <div className="field">
-                <span className="label">Registered items</span>
-                <div className="stack-sm">
-                  {(editing.registrations as { item_name: string; status: string }[]).map((r, i) => (
-                    <div key={i} className="text-sm row-between">
-                      <span>{r.item_name}</span>
-                      <span className="badge badge-neutral">{r.status}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {saveError !== null && <ErrorState error={saveError} />}
 
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button type="button" className="btn btn-ghost" onClick={() => setEditing(null)}>
-                Cancel
+                {editing.id ? 'Done' : 'Cancel'}
               </button>
               <button type="button" className="btn btn-primary" disabled={saving} onClick={() => void save()}>
                 {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+
+            {editing.id != null && (
+              <>
+                <hr className="rule" />
+
+                {editing.registrations != null && Array.isArray(editing.registrations) && (editing.registrations as unknown[]).length > 0 && (
+                  <div className="field">
+                    <span className="label">Registered items</span>
+                    <div className="stack-sm">
+                      {(editing.registrations as { item_name: string; status: string }[]).map((r, i) => (
+                        <div key={i} className="text-sm row-between">
+                          <span>{r.item_name}</span>
+                          <span className="badge badge-neutral">{r.status}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="field">
+                  <div className="row-between">
+                    <label className="label">Add an item (ADM-05-03)</label>
+                    <label className="text-xs row">
+                      <input type="checkbox" checked={showIneligible} onChange={(e) => setShowIneligible(e.target.checked)} />
+                      Show ineligible
+                    </label>
+                  </div>
+                  <div className="stack-sm" style={{ maxHeight: 240, overflowY: 'auto' }}>
+                    {eligibleItems.filter((i) => !i.alreadyRegistered).length === 0 && (
+                      <p className="text-sm muted">
+                        {showIneligible ? 'No items left to add.' : 'No further eligible items — try "Show ineligible".'}
+                      </p>
+                    )}
+                    {eligibleItems
+                      .filter((item) => !item.alreadyRegistered)
+                      .map((item) => (
+                        <div
+                          key={item.id}
+                          className="row-between"
+                          style={{ opacity: item.eligible ? 1 : 0.7, padding: 'var(--space-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}
+                          title={item.problems.map((p) => p.message).join(' ')}
+                        >
+                          <span>
+                            {item.name} ({item.code})
+                            {!item.eligible && <span className="badge badge-warning" style={{ marginLeft: 6 }}>Ineligible</span>}
+                          </span>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-secondary"
+                            disabled={addBusy}
+                            onClick={() => void addItem(item.id, item.name)}
+                          >
+                            Add
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </Sheet>
+
+      <Sheet open={ineligibleConfirm !== null} onClose={() => setIneligibleConfirm(null)} title="Not eligible for this item">
+        {ineligibleConfirm && (
+          <div className="stack">
+            <div className="banner banner-warning">{ineligibleConfirm.message}</div>
+            <Field label="Reason to add anyway" required hint="At least 10 characters (FSD ADM-05-04)">
+              <textarea
+                className="textarea"
+                value={ineligibleConfirm.reason}
+                onChange={(e) => setIneligibleConfirm({ ...ineligibleConfirm, reason: e.target.value })}
+              />
+            </Field>
+            <div className="row" style={{ justifyContent: 'flex-end' }}>
+              <button type="button" className="btn btn-ghost" onClick={() => setIneligibleConfirm(null)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={addBusy || ineligibleConfirm.reason.trim().length < 10}
+                onClick={() => void addItem(ineligibleConfirm.itemId, ineligibleConfirm.itemName, ineligibleConfirm.reason)}
+              >
+                {addBusy ? 'Adding…' : 'Add anyway'}
               </button>
             </div>
           </div>

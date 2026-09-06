@@ -9,6 +9,7 @@
 import type { Content, TableCell, TDocumentDefinitions } from 'pdfmake/interfaces';
 import ExcelJS from 'exceljs';
 import { db } from '../../db/pool.js';
+import { errors } from '../../utils/errors.js';
 import { getItemResult } from '../results/itemResults.js';
 import { publicationSummary } from '../results/publication.js';
 import { categoryChampions, churchLeaderboard, individualStandings } from '../results/standings.js';
@@ -320,4 +321,302 @@ export async function judgeActivityReport(eventId: string, eventName: string, fo
 
   const buffer = await renderPdf({ content } as TDocumentDefinitions);
   return { buffer, contentType: 'application/pdf', filename: 'judge-activity.pdf' };
+}
+
+// ---------------------------------------------------------------------------
+// Consolidated results — every published item, one document
+// ---------------------------------------------------------------------------
+
+export async function consolidatedResultsReport(eventId: string, eventName: string, format: ReportFormat): Promise<ReportFile> {
+  const publishedItems = await db
+    .selectFrom('v_item_readiness')
+    .select(['item_id', 'item_name', 'item_code'])
+    .where('event_id', '=', eventId)
+    .where('publication_state', '=', 'PUBLISHED')
+    .orderBy('item_name')
+    .execute();
+
+  const results = await Promise.all(publishedItems.map((i) => getItemResult(i.item_id)));
+
+  if (format === 'xlsx') {
+    const buffer = await excelBuffer((workbook) => {
+      for (const result of results) {
+        const judgeNames = [...new Set(result.rows.flatMap((r) => r.judgeMarks.map((m) => m.judgeName)))].sort();
+        const sheet = workbook.addWorksheet(result.item.code.slice(0, 31));
+        sheet.addRow([`${result.item.name} (${result.item.code})`]);
+        sheet.addRow([]);
+        const header = sheet.addRow(['Position', 'Chest', 'Participant', 'Church', ...judgeNames, 'Aggregate', 'Grade', 'Points']);
+        styleHeaderRow(header);
+        for (const row of result.rows) {
+          const marksByJudge = new Map(row.judgeMarks.map((m) => [m.judgeName, m.mark]));
+          sheet.addRow([
+            row.isSharedPosition ? `${row.position}=` : (row.position ?? '—'),
+            row.chestNumber ?? '—',
+            row.participantName,
+            row.churchName ?? '—',
+            ...judgeNames.map((n) => marksByJudge.get(n) ?? ''),
+            row.aggregate ?? '',
+            row.grade ?? '',
+            row.points,
+          ]);
+        }
+        sheet.columns.forEach((col) => (col.width = 16));
+      }
+    });
+    return { buffer, contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', filename: 'consolidated-results.xlsx' };
+  }
+
+  const content: Content[] = [
+    { text: eventName, style: 'subtitle' },
+    { text: 'Consolidated Results', style: 'title' },
+    { text: `${results.length} published item(s)`, style: 'subtitle' },
+  ];
+
+  results.forEach((result, index) => {
+    const judgeNames = [...new Set(result.rows.flatMap((r) => r.judgeMarks.map((m) => m.judgeName)))].sort();
+    const tableBody: TableCell[][] = [
+      ['Pos', 'Chest', 'Participant', 'Church', ...judgeNames, 'Agg', 'Grade', 'Pts'].map((t) => ({ text: t, style: 'tableHeader' })),
+    ];
+    for (const row of result.rows) {
+      const marksByJudge = new Map(row.judgeMarks.map((m) => [m.judgeName, m.mark]));
+      tableBody.push([
+        { text: row.isSharedPosition ? `${row.position}=` : String(row.position ?? '—') },
+        { text: row.chestNumber ?? '—' },
+        { text: row.participantName },
+        { text: row.churchName ?? '—' },
+        ...judgeNames.map((n) => ({ text: String(marksByJudge.get(n) ?? '—') })),
+        { text: row.aggregate?.toFixed(2) ?? '—' },
+        { text: row.grade ?? '—' },
+        { text: String(row.points) },
+      ]);
+    }
+    content.push({ text: `${result.item.name} (${result.item.code})`, style: 'sectionHeader', pageBreak: index > 0 ? 'before' : undefined });
+    content.push({
+      table: { headerRows: 1, widths: ['auto', 'auto', '*', 'auto', ...judgeNames.map(() => 'auto'), 'auto', 'auto', 'auto'], body: tableBody },
+      layout: 'lightHorizontalLines',
+    });
+  });
+
+  const buffer = await renderPdf({ content } as TDocumentDefinitions);
+  return { buffer, contentType: 'application/pdf', filename: 'consolidated-results.pdf' };
+}
+
+// ---------------------------------------------------------------------------
+// Church detail sheet
+// ---------------------------------------------------------------------------
+
+export async function churchDetailSheet(churchId: string, eventId: string, eventName: string, format: ReportFormat): Promise<ReportFile> {
+  const church = await db.selectFrom('churches').select(['id', 'name', 'short_code']).where('id', '=', churchId).executeTakeFirst();
+  if (!church) throw errors.notFound('Church', churchId);
+
+  const [standings, members] = await Promise.all([churchLeaderboard(eventId), individualStandings(eventId)]);
+  const churchStanding = standings.find((s) => s.churchId === churchId) ?? null;
+  const churchMembers = members.filter((m) => m.churchId === churchId).sort((a, b) => b.totalPoints - a.totalPoints);
+
+  if (format === 'xlsx') {
+    const buffer = await excelBuffer((workbook) => {
+      const sheet = workbook.addWorksheet('Church Detail');
+      sheet.addRow([eventName]);
+      sheet.addRow([`${church.name} (${church.short_code})`]);
+      if (churchStanding) {
+        sheet.addRow([
+          `Rank ${churchStanding.rank}${churchStanding.isTied ? ' (tied)' : ''} · ${churchStanding.totalPoints} points · ${churchStanding.firstPlaces} first(s), ${churchStanding.secondPlaces} second(s), ${churchStanding.thirdPlaces} third(s)`,
+        ]);
+      }
+      sheet.addRow([]);
+      const header = sheet.addRow(['Chest', 'Name', 'Category', 'Points', 'Items', '1st', '2nd', '3rd']);
+      styleHeaderRow(header);
+      for (const m of churchMembers) {
+        sheet.addRow([m.chestNumber, m.fullName, m.categoryName ?? '—', m.totalPoints, m.itemsCompeted, m.firstPlaces, m.secondPlaces, m.thirdPlaces]);
+      }
+      sheet.columns.forEach((col) => (col.width = 16));
+    });
+    return { buffer, contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', filename: `church-detail-${church.short_code}.xlsx` };
+  }
+
+  const tableBody: TableCell[][] = [
+    ['Chest', 'Name', 'Category', 'Points', 'Items', '1st', '2nd', '3rd'].map((t) => ({ text: t, style: 'tableHeader' })),
+  ];
+  for (const m of churchMembers) {
+    tableBody.push([
+      { text: m.chestNumber },
+      { text: m.fullName },
+      { text: m.categoryName ?? '—' },
+      { text: String(m.totalPoints) },
+      { text: String(m.itemsCompeted) },
+      { text: String(m.firstPlaces) },
+      { text: String(m.secondPlaces) },
+      { text: String(m.thirdPlaces) },
+    ]);
+  }
+
+  const content: Content[] = [
+    { text: eventName, style: 'subtitle' },
+    { text: `${church.name} (${church.short_code})`, style: 'title' },
+  ];
+  if (churchStanding) {
+    content.push({
+      text: `Rank ${churchStanding.rank}${churchStanding.isTied ? ' (tied)' : ''} · ${churchStanding.totalPoints} points · ${churchStanding.firstPlaces} first(s), ${churchStanding.secondPlaces} second(s), ${churchStanding.thirdPlaces} third(s)`,
+      style: 'subtitle',
+    });
+  }
+  content.push({ table: { headerRows: 1, widths: ['auto', '*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto'], body: tableBody }, layout: 'lightHorizontalLines' });
+
+  const buffer = await renderPdf({ content } as TDocumentDefinitions);
+  return { buffer, contentType: 'application/pdf', filename: `church-detail-${church.short_code}.pdf` };
+}
+
+// ---------------------------------------------------------------------------
+// Participation list / call sheet
+// ---------------------------------------------------------------------------
+
+export async function participationListReport(itemId: string, eventName: string, format: ReportFormat): Promise<ReportFile> {
+  const item = await db.selectFrom('items').select(['id', 'name', 'code', 'stage']).where('id', '=', itemId).executeTakeFirst();
+  if (!item) throw errors.notFound('Item', itemId);
+
+  const rows = await db
+    .selectFrom('registrations as r')
+    .leftJoin('members as m', 'm.id', 'r.member_id')
+    .innerJoin('churches as c', 'c.id', 'r.church_id')
+    .select(['r.call_order', 'r.team_name', 'm.chest_number', 'm.full_name', 'c.name as church_name'])
+    .where('r.item_id', '=', itemId)
+    .where('r.status', '=', 'REGISTERED')
+    .orderBy('r.call_order')
+    .orderBy('m.chest_number_numeric')
+    .execute();
+
+  const safeName = item.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+
+  if (format === 'xlsx') {
+    const buffer = await excelBuffer((workbook) => {
+      const sheet = workbook.addWorksheet('Call Sheet');
+      sheet.addRow([eventName]);
+      sheet.addRow([`${item.name} (${item.code}) — ${item.stage ?? 'Stage not set'}`]);
+      sheet.addRow([]);
+      const header = sheet.addRow(['#', 'Chest', 'Participant', 'Church']);
+      styleHeaderRow(header);
+      rows.forEach((r, i) => {
+        sheet.addRow([r.call_order ?? i + 1, r.chest_number ?? '—', r.full_name ?? r.team_name ?? 'Unknown', r.church_name]);
+      });
+      sheet.columns.forEach((col) => (col.width = 20));
+    });
+    return { buffer, contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', filename: `call-sheet-${safeName}.xlsx` };
+  }
+
+  const tableBody: TableCell[][] = [['#', 'Chest', 'Participant', 'Church'].map((t) => ({ text: t, style: 'tableHeader' }))];
+  rows.forEach((r, i) => {
+    tableBody.push([
+      { text: String(r.call_order ?? i + 1) },
+      { text: r.chest_number ?? '—' },
+      { text: r.full_name ?? r.team_name ?? 'Unknown' },
+      { text: r.church_name },
+    ]);
+  });
+
+  const content: Content[] = [
+    { text: eventName, style: 'subtitle' },
+    { text: `${item.name} (${item.code})`, style: 'title' },
+    { text: item.stage ?? 'Stage not set', style: 'subtitle' },
+    { table: { headerRows: 1, widths: ['auto', 'auto', '*', '*'], body: tableBody }, layout: 'lightHorizontalLines' },
+  ];
+
+  const buffer = await renderPdf({ content } as TDocumentDefinitions);
+  return { buffer, contentType: 'application/pdf', filename: `call-sheet-${safeName}.pdf` };
+}
+
+// ---------------------------------------------------------------------------
+// Certificates — one per placed (1st/2nd/3rd) participant in an item
+// ---------------------------------------------------------------------------
+
+export async function certificatesReport(itemId: string, eventName: string): Promise<ReportFile> {
+  const result = await getItemResult(itemId);
+  const placed = result.rows.filter((r) => r.placed && r.position !== null && r.position <= 3);
+  const safeName = result.item.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+
+  if (placed.length === 0) {
+    throw errors.validation(`"${result.item.name}" has no placed results yet — nothing to certify.`);
+  }
+
+  const ordinal = (n: number) => (n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`);
+
+  const content: Content[] = placed.map((row, index) => ({
+    stack: [
+      { text: eventName, style: 'subtitle', alignment: 'center', margin: [0, 60, 0, 0] },
+      { text: 'Certificate of Achievement', style: 'title', alignment: 'center', fontSize: 26, margin: [0, 10, 0, 30] },
+      { text: 'This certifies that', alignment: 'center', fontSize: 12, color: '#555555' },
+      { text: row.participantName, alignment: 'center', fontSize: 22, bold: true, margin: [0, 10, 0, 10] },
+      { text: row.churchName ?? '', alignment: 'center', fontSize: 12, color: '#555555', margin: [0, 0, 0, 20] },
+      {
+        text: `has secured the ${ordinal(row.position!)} position in "${result.item.name}"`,
+        alignment: 'center',
+        fontSize: 14,
+        margin: [40, 0, 40, 10],
+      },
+      ...(row.grade ? [{ text: `Grade: ${row.grade}`, alignment: 'center', fontSize: 12, color: '#555555' } as Content] : []),
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 470, y2: 0, lineWidth: 1, lineColor: '#3b36ad' }], margin: [0, 60, 0, 0] },
+    ],
+    pageBreak: index < placed.length - 1 ? 'after' : undefined,
+  }));
+
+  const buffer = await renderPdf({
+    pageOrientation: 'landscape',
+    pageMargins: [60, 60, 60, 60],
+    content,
+  } as TDocumentDefinitions);
+
+  return { buffer, contentType: 'application/pdf', filename: `certificates-${safeName}.pdf` };
+}
+
+// ---------------------------------------------------------------------------
+// Badge sheet — printable name badges, laid out for cutting
+// ---------------------------------------------------------------------------
+
+export async function badgeSheetReport(eventId: string, eventName: string): Promise<ReportFile> {
+  const members = await db
+    .selectFrom('members as m')
+    .innerJoin('churches as c', 'c.id', 'm.church_id')
+    .select(['m.chest_number', 'm.full_name', 'c.name as church_name'])
+    .where('m.event_id', '=', eventId)
+    .where('m.is_active', '=', true)
+    .orderBy('m.chest_number_numeric')
+    .execute();
+
+  const badge = (m: (typeof members)[number]): Content => ({
+    table: {
+      widths: ['*'],
+      body: [
+        [
+          {
+            stack: [
+              { text: eventName, fontSize: 8, color: '#888888', alignment: 'center' },
+              { text: m.chest_number, fontSize: 28, bold: true, alignment: 'center', margin: [0, 6, 0, 4] },
+              { text: m.full_name, fontSize: 13, bold: true, alignment: 'center' },
+              { text: m.church_name, fontSize: 10, color: '#555555', alignment: 'center', margin: [0, 2, 0, 0] },
+            ],
+            margin: [8, 10, 8, 10],
+          },
+        ],
+      ],
+    },
+    layout: { hLineColor: () => '#3b36ad', vLineColor: () => '#3b36ad', hLineWidth: () => 1, vLineWidth: () => 1 },
+  });
+
+  // Two columns of badges, one badge per row cell — no barcode/QR (no such
+  // library is installed in this build; FSD ADM-05-08 lists it as optional).
+  const rows: Content[] = [];
+  for (let i = 0; i < members.length; i += 2) {
+    const left = members[i]!;
+    const right = members[i + 1];
+    rows.push({
+      columns: [
+        { width: '50%', stack: [badge(left)] },
+        { width: '50%', stack: right ? [badge(right)] : [] },
+      ],
+      columnGap: 12,
+      margin: [0, 0, 0, 12],
+    });
+  }
+
+  const buffer = await renderPdf({ content: rows } as TDocumentDefinitions);
+  return { buffer, contentType: 'application/pdf', filename: 'badge-sheet.pdf' };
 }

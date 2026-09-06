@@ -166,11 +166,9 @@ export function Categories() {
                           <button type="button" className="btn btn-sm btn-ghost" onClick={() => void toggleActive(c)}>
                             {c.isActive ? 'Deactivate' : 'Reactivate'}
                           </button>
-                          {c.memberCount === 0 && c.itemCount === 0 && (
-                            <button type="button" className="btn btn-sm btn-danger" onClick={() => setDeleting(c)}>
-                              Delete
-                            </button>
-                          )}
+                          <button type="button" className="btn btn-sm btn-danger" onClick={() => setDeleting(c)}>
+                            Delete
+                          </button>
                         </>
                       )}
                     </td>
