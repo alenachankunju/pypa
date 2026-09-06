@@ -282,17 +282,20 @@ export function auditDiff<T extends Record<string, unknown>>(
  * ADM-14-05: "Retention is for the full event plus a configurable archival
  * period (default 24 months)."
  *
- * This reports what is past the retention cut-off; it never deletes anything.
- * ADM-14-03 is a hard, unconditional guarantee — migration 0009's
- * audit_logs_no_delete / audit_logs_no_update triggers raise on every DELETE
- * and UPDATE regardless of caller, by design, so that no application code
- * path (a bug, a compromised admin session, a future feature) can edit the
- * trail. Retention therefore isn't something this service can enforce by
- * deleting rows — an actual purge past the configured period is deliberately
- * an out-of-band DBA action (temporarily dropping the trigger with a
- * superuser connection), not an in-app button. What the application can and
- * does own is the configurable period itself (events.audit_retention_months)
- * and surfacing how many rows are currently eligible, so an operator knows
+ * The clock is keyed to the EVENT, not to each row's own timestamp: the whole
+ * of an event's audit trail is kept until `end_date + retention` has passed,
+ * then the whole trail becomes archival-eligible together — an entry from
+ * early in the event isn't "more expired" than one from the day it closed.
+ * This reports that status; it never deletes anything. ADM-14-03 is a hard,
+ * unconditional guarantee — migration 0009's audit_logs_no_delete /
+ * audit_logs_no_update triggers raise on every DELETE and UPDATE regardless
+ * of caller, by design, so that no application code path (a bug, a
+ * compromised admin session, a future feature) can edit the trail. Retention
+ * therefore isn't something this service can enforce by deleting rows — an
+ * actual purge past the configured period is deliberately an out-of-band DBA
+ * action (temporarily dropping the trigger with a superuser connection), not
+ * an in-app button. What the application can and does own is the
+ * configurable period itself (events.audit_retention_months) and surfacing
  * when that out-of-band step is due.
  */
 export async function auditRetentionStatus(
@@ -309,11 +312,14 @@ export async function auditRetentionStatus(
   const cutoff = new Date(event.end_date);
   cutoff.setMonth(cutoff.getMonth() + event.audit_retention_months);
 
+  if (cutoff.getTime() > Date.now()) {
+    return { cutoff, eligibleForPurgeCount: 0, retentionMonths: event.audit_retention_months };
+  }
+
   const { count } = await db
     .selectFrom('audit_logs')
     .select((eb) => eb.fn.countAll<number>().as('count'))
     .where('event_id', '=', eventId)
-    .where('occurred_at', '<', cutoff)
     .executeTakeFirstOrThrow();
 
   return { cutoff, eligibleForPurgeCount: Number(count), retentionMonths: event.audit_retention_months };
