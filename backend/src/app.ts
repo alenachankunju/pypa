@@ -35,6 +35,7 @@ import { memberRoutes } from './modules/members/members.routes.js';
 import { panelRoutes } from './modules/panels/panels.routes.js';
 import { performanceRoutes } from './modules/performances/performances.routes.js';
 import { registrationRoutes } from './modules/registrations/registrations.routes.js';
+import { reportRoutes } from './modules/reports/reports.routes.js';
 import { resultRoutes } from './modules/results/results.routes.js';
 import { scoreRoutes } from './modules/scores/scores.routes.js';
 import { sessionRoutes } from './modules/sessions/sessions.routes.js';
@@ -150,6 +151,7 @@ export function createApp(): Express {
   admin.use('/config', configRoutes());
   admin.use('/audit', auditRoutes());
   admin.use('/snapshots', snapshotRoutes());
+  admin.use('/reports', reportRoutes());
 
   authed.use('/admin', admin);
   app.use(API_PREFIX, authed);

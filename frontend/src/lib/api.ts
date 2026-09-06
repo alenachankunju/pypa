@@ -316,6 +316,65 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   return { data: payload.data, meta: payload.meta };
 }
 
+/**
+ * A binary download (report PDF/Excel, snapshot export). request() always
+ * calls response.json(), which would throw on a real file body — this is the
+ * one path that needs the raw Blob instead, but still wants the same auth
+ * token / proactive-refresh handling every other call gets.
+ */
+export async function downloadFile(
+  path: string,
+  query?: RequestOptions['query'],
+): Promise<{ blob: Blob; filename: string | null }> {
+  const url = new URL(`${BASE_URL}${path}`, window.location.origin);
+  if (query) {
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== null && value !== '') {
+        url.searchParams.set(key, String(value));
+      }
+    }
+  }
+
+  if (accessToken && accessExpiresAt && Date.now() > accessExpiresAt - 30_000) {
+    await refreshAccessToken();
+  }
+
+  const send = () => fetch(url.toString(), { headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {} });
+
+  let response: Response;
+  try {
+    response = await send();
+  } catch {
+    throw new ApiError(ErrorCode.NETWORK_OFFLINE, 'No connection. Check the network and try again.', 0);
+  }
+
+  if (response.status === 401) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) response = await send();
+  }
+
+  if (!response.ok) {
+    let failure: ApiFailureBody | null = null;
+    try {
+      failure = (await response.json()) as ApiFailureBody;
+    } catch {
+      // Not a JSON error body — fall through to a generic message.
+    }
+    throw new ApiError(
+      failure?.error?.code ?? ErrorCode.INTERNAL_ERROR,
+      failure?.error?.message ?? `The download failed (${response.status}).`,
+      response.status,
+      failure?.error?.details,
+      failure?.meta?.requestId,
+    );
+  }
+
+  const disposition = response.headers.get('Content-Disposition') ?? '';
+  const match = /filename="([^"]+)"/.exec(disposition);
+
+  return { blob: await response.blob(), filename: match?.[1] ?? null };
+}
+
 /** Convenience wrappers. Most callers want the data and nothing else. */
 export const api = {
   get: <T>(path: string, query?: RequestOptions['query'], signal?: AbortSignal) =>
@@ -335,6 +394,8 @@ export const api = {
   del: <T>(path: string, body?: unknown) => request<T>(path, { method: 'DELETE', body }).then((r) => r.data),
 
   raw: request,
+
+  downloadFile,
 };
 
 export { refreshAccessToken };
