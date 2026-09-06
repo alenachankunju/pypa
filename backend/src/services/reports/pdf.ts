@@ -17,6 +17,15 @@ const FONTS = {
     italics: 'Helvetica-Oblique',
     bolditalics: 'Helvetica-BoldOblique',
   },
+  // The certificate's display face — a serif reads as "certificate"
+  // immediately in a way Helvetica never will, and Times-Roman is one of
+  // the standard 14 fonts, so it costs nothing beyond declaring it here.
+  Times: {
+    normal: 'Times-Roman',
+    bold: 'Times-Bold',
+    italics: 'Times-Italic',
+    bolditalics: 'Times-BoldItalic',
+  },
 };
 
 export function renderPdf(docDefinition: TDocumentDefinitions): Promise<Buffer> {

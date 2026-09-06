@@ -528,6 +528,42 @@ export async function participationListReport(itemId: string, eventName: string,
 // Certificates — one per placed (1st/2nd/3rd) participant in an item
 // ---------------------------------------------------------------------------
 
+/**
+ * A4 landscape usable content box once the certificate's own 40pt margins
+ * are applied — used to size the border frame and the full-width rules so
+ * every measurement is a real number, not a guess (841.89 x 595.28 is
+ * pdfmake's own A4-landscape point size).
+ */
+const CERT_MARGIN = 40;
+const CERT_CONTENT_WIDTH = 841.89 - CERT_MARGIN * 2;
+const CERT_CONTENT_HEIGHT = 595.28 - CERT_MARGIN * 2;
+const CERT_INK = '#1b2130';
+const CERT_ACCENT = '#3b36ad';
+const CERT_GOLD = '#b8892b';
+const CERT_MUTED = '#6b7280';
+
+function certificateBorder(): Content {
+  // Absolutely positioned to the page margin, drawn first, independent of
+  // everything that flows after it — a double frame (indigo outer, gold
+  // inner) is what actually reads as "certificate" rather than "memo".
+  return {
+    canvas: [
+      { type: 'rect', x: 0, y: 0, w: CERT_CONTENT_WIDTH, h: CERT_CONTENT_HEIGHT, r: 6, lineColor: CERT_ACCENT, lineWidth: 2 },
+      { type: 'rect', x: 10, y: 10, w: CERT_CONTENT_WIDTH - 20, h: CERT_CONTENT_HEIGHT - 20, r: 3, lineColor: CERT_GOLD, lineWidth: 0.75 },
+    ],
+    absolutePosition: { x: CERT_MARGIN, y: CERT_MARGIN },
+  };
+}
+
+function certificateRule(marginTop: number, marginBottom: number): Content {
+  // Full width, so centering it is free — no coordinate guessing needed,
+  // unlike a short centered rule would require.
+  return {
+    canvas: [{ type: 'line', x1: 0, y1: 0, x2: CERT_CONTENT_WIDTH, y2: 0, lineWidth: 0.75, lineColor: CERT_GOLD }],
+    margin: [0, marginTop, 0, marginBottom],
+  };
+}
+
 export async function certificatesReport(itemId: string, eventName: string): Promise<ReportFile> {
   const result = await getItemResult(itemId);
   const placed = result.rows.filter((r) => r.placed && r.position !== null && r.position <= 3);
@@ -538,29 +574,60 @@ export async function certificatesReport(itemId: string, eventName: string): Pro
   }
 
   const ordinal = (n: number) => (n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`);
+  const today = new Date().toLocaleDateString('en-IN', { dateStyle: 'long' });
 
   const content: Content[] = placed.map((row, index) => ({
+    // The 24pt horizontal margin insets the flowing content clear of the
+    // inner gold border (itself inset 10pt from the frame) — absolutePosition
+    // on certificateBorder() is relative to the page, not this stack, so the
+    // border itself is unaffected by this margin and stays frame-accurate.
+    margin: [24, 0, 24, 0],
     stack: [
-      { text: eventName, style: 'subtitle', alignment: 'center', margin: [0, 60, 0, 0] },
-      { text: 'Certificate of Achievement', style: 'title', alignment: 'center', fontSize: 26, margin: [0, 10, 0, 30] },
-      { text: 'This certifies that', alignment: 'center', fontSize: 12, color: '#555555' },
-      { text: row.participantName, alignment: 'center', fontSize: 22, bold: true, margin: [0, 10, 0, 10] },
-      { text: row.churchName ?? '', alignment: 'center', fontSize: 12, color: '#555555', margin: [0, 0, 0, 20] },
+      certificateBorder(),
+      { text: eventName.toUpperCase(), font: 'Helvetica', bold: true, fontSize: 10, color: CERT_GOLD, alignment: 'center', margin: [0, 58, 0, 0] },
+      { text: 'Certificate of Achievement', font: 'Times', bold: true, fontSize: 27, color: CERT_ACCENT, alignment: 'center', margin: [0, 6, 0, 0] },
+      certificateRule(14, 16),
+      { text: 'This certifies that', font: 'Helvetica', italics: true, fontSize: 11, color: CERT_MUTED, alignment: 'center' },
+      { text: row.participantName, font: 'Times', bold: true, fontSize: 30, color: CERT_INK, alignment: 'center', margin: [0, 8, 0, 4] },
+      ...(row.churchName ? [{ text: row.churchName, font: 'Helvetica', fontSize: 11, color: CERT_MUTED, alignment: 'center' } as Content] : []),
       {
-        text: `has secured the ${ordinal(row.position!)} position in "${result.item.name}"`,
+        text: [
+          { text: 'has secured the ', font: 'Times', fontSize: 14, color: CERT_INK },
+          { text: `${ordinal(row.position!)} position`, font: 'Times', bold: true, fontSize: 17, color: CERT_GOLD },
+          { text: ' in ', font: 'Times', fontSize: 14, color: CERT_INK },
+          { text: `"${result.item.name}"`, font: 'Times', italics: true, fontSize: 14, color: CERT_INK },
+        ],
         alignment: 'center',
-        fontSize: 14,
-        margin: [40, 0, 40, 10],
+        margin: [50, 18, 50, 0],
       },
-      ...(row.grade ? [{ text: `Grade: ${row.grade}`, alignment: 'center', fontSize: 12, color: '#555555' } as Content] : []),
-      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 470, y2: 0, lineWidth: 1, lineColor: '#3b36ad' }], margin: [0, 60, 0, 0] },
+      ...(row.grade
+        ? [{ text: `Grade ${row.grade}`, font: 'Helvetica', fontSize: 10, color: CERT_MUTED, alignment: 'center', margin: [0, 6, 0, 0] } as Content]
+        : []),
+      // Anchored to the frame's bottom edge by absolute position rather than
+      // a guessed margin-top after the content above — that leaves the
+      // footer's placement correct regardless of how tall the name/church/
+      // sentence block above happens to render for a given certificate.
+      {
+        canvas: [{ type: 'line', x1: 0, y1: 0, x2: CERT_CONTENT_WIDTH - 48, y2: 0, lineWidth: 0.75, lineColor: CERT_GOLD }],
+        absolutePosition: { x: CERT_MARGIN + 24, y: CERT_MARGIN + CERT_CONTENT_HEIGHT - 55 },
+      },
+      {
+        columns: [
+          { width: '*', text: result.item.code, font: 'Helvetica', fontSize: 8.5, color: CERT_MUTED },
+          { width: '*', text: today, font: 'Helvetica', fontSize: 8.5, color: CERT_MUTED, alignment: 'right' },
+        ],
+        absolutePosition: { x: CERT_MARGIN + 24, y: CERT_MARGIN + CERT_CONTENT_HEIGHT - 44 },
+        // Columns need an explicit width to lay out against — the frame's
+        // inner content width, minus the same inset used everywhere else.
+        width: CERT_CONTENT_WIDTH - 48,
+      },
     ],
     pageBreak: index < placed.length - 1 ? 'after' : undefined,
   }));
 
   const buffer = await renderPdf({
     pageOrientation: 'landscape',
-    pageMargins: [60, 60, 60, 60],
+    pageMargins: [CERT_MARGIN, CERT_MARGIN, CERT_MARGIN, CERT_MARGIN],
     content,
   } as TDocumentDefinitions);
 
