@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError, api } from '../../lib/api';
-import { ErrorState, Field, LoadingState, PageHeader, Sheet, StatusBadge } from '../../components/ui';
+import { ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet, StatusBadge } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 
 interface ItemRow {
@@ -19,6 +19,7 @@ interface ItemRow {
   stage: string | null;
   weightMultiplier: number;
   registrationCount: number;
+  performanceCount: number;
   criteriaCount: number;
   publicationState: string;
   isReady: boolean;
@@ -57,6 +58,9 @@ export function Items() {
   const [cancelling, setCancelling] = useState<ItemRow | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelBusy, setCancelBusy] = useState(false);
+  const [deleting, setDeleting] = useState<ItemRow | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const [criteriaFor, setCriteriaFor] = useState<{ id: string; name: string; maxMark: number } | null>(null);
   const [criteria, setCriteria] = useState<Criterion[]>([]);
@@ -128,6 +132,26 @@ export function Items() {
     }
   }
 
+  async function confirmDeleteItem() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    try {
+      await api.del(`/api/admin/items/${deleting.id}`);
+      setNotice(`${deleting.name} deleted.`);
+      setDeleting(null);
+      load();
+    } catch (err) {
+      setDeleting(null);
+      if (err instanceof ApiError && err.code === 'IN_USE') {
+        setNotice(err.message);
+      } else {
+        setError(err);
+      }
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
   async function openCriteria(item: ItemRow) {
     const full = await api.get<{ max_mark: number | null; criteria: { id: string; name: string; maxMark: number }[] }>(
       `/api/admin/items/${item.id}`,
@@ -170,6 +194,15 @@ export function Items() {
           )
         }
       />
+
+      {notice && (
+        <div className="banner banner-success">
+          <span className="grow">{notice}</span>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => setNotice(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {!rows ? (
         <LoadingState />
@@ -223,6 +256,11 @@ export function Items() {
                           {item.status !== 'CANCELLED' && (
                             <button type="button" className="btn btn-sm btn-danger" onClick={() => setCancelling(item)}>
                               Cancel
+                            </button>
+                          )}
+                          {item.performanceCount === 0 && (
+                            <button type="button" className="btn btn-sm btn-danger" onClick={() => setDeleting(item)}>
+                              Delete
                             </button>
                           )}
                         </>
@@ -282,8 +320,18 @@ export function Items() {
               </Field>
             </div>
             <div className="row">
-              <Field label="Stage">
-                <input className="input" value={(editing.stage as string) ?? ''} onChange={(e) => setEditing({ ...editing, stage: e.target.value })} />
+              <Field label="Stage" hint="Pick an existing stage, or type a new one">
+                <input
+                  className="input"
+                  list="existing-stages"
+                  value={(editing.stage as string) ?? ''}
+                  onChange={(e) => setEditing({ ...editing, stage: e.target.value })}
+                />
+                <datalist id="existing-stages">
+                  {[...new Set((rows ?? []).map((r) => r.stage).filter((s): s is string => Boolean(s)))].map((s) => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
               </Field>
               <Field label="Scheduled at">
                 <input
@@ -450,6 +498,16 @@ export function Items() {
           </div>
         )}
       </Sheet>
+
+      <ConfirmDialog
+        open={deleting !== null}
+        title="Delete item"
+        consequence={<><strong>{deleting?.name}</strong> will be permanently deleted. This cannot be undone.</>}
+        confirmLabel="Delete"
+        busy={deleteBusy}
+        onConfirm={() => void confirmDeleteItem()}
+        onCancel={() => setDeleting(null)}
+      />
     </div>
   );
 }

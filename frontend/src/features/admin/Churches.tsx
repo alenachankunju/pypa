@@ -2,7 +2,7 @@
  * Screen A2 — Church list / form (FSD 5.2).
  */
 import { useEffect, useState } from 'react';
-import { api } from '../../lib/api';
+import { ApiError, api } from '../../lib/api';
 import { ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 
@@ -29,6 +29,7 @@ export function Churches() {
   const [error, setError] = useState<unknown>(null);
   const [editing, setEditing] = useState<Partial<Church> | null>(null);
   const [deactivating, setDeactivating] = useState<Church | null>(null);
+  const [deleting, setDeleting] = useState<Church | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -93,6 +94,26 @@ export function Churches() {
     await api.patch(`/api/admin/churches/${church.id}`, { isActive: true });
     setNotice(`${church.name} reactivated.`);
     load();
+  }
+
+  async function confirmDelete() {
+    if (!deleting) return;
+    setSaving(true);
+    try {
+      await api.del(`/api/admin/churches/${deleting.id}`);
+      setNotice(`${deleting.name} deleted.`);
+      setDeleting(null);
+      load();
+    } catch (err) {
+      setDeleting(null);
+      if (err instanceof ApiError && err.code === 'IN_USE') {
+        setNotice(err.message);
+      } else {
+        setError(err);
+      }
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (error) return <ErrorState error={error} onRetry={load} />;
@@ -180,6 +201,11 @@ export function Churches() {
                           ) : (
                             <button type="button" className="btn btn-sm btn-secondary" onClick={() => void reactivate(c)}>
                               Reactivate
+                            </button>
+                          )}
+                          {c.memberCount === 0 && (
+                            <button type="button" className="btn btn-sm btn-danger" onClick={() => setDeleting(c)}>
+                              Delete
                             </button>
                           )}
                         </>
@@ -272,6 +298,16 @@ export function Churches() {
         busy={saving}
         onConfirm={() => void confirmDeactivate()}
         onCancel={() => setDeactivating(null)}
+      />
+
+      <ConfirmDialog
+        open={deleting !== null}
+        title="Delete church"
+        consequence={<><strong>{deleting?.name}</strong> will be permanently deleted. This cannot be undone.</>}
+        confirmLabel="Delete"
+        busy={saving}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setDeleting(null)}
       />
     </div>
   );

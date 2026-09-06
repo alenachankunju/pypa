@@ -201,6 +201,22 @@ async function advanceToReady(
   return nextState;
 }
 
+/**
+ * PUBLISHED and WITHHELD each carry a CHECK constraint tied to columns this
+ * function doesn't set (published_by/published_at, withheld_reason). Postgres
+ * validates an INSERT's proposed row against every CHECK constraint before it
+ * even attempts conflict resolution (ExecConstraints runs ahead of
+ * ExecCheckIndexConstraints) — so on `INSERT ... ON CONFLICT DO UPDATE`, using
+ * the real target state as the INSERT candidate fails here even when a
+ * conflicting row already exists and the UPDATE branch would have produced a
+ * fully valid result untouched on those columns. This was a real, reproducible
+ * production bug: recomputing (simply viewing) an already-published item's
+ * results threw exactly this error on every call, because advanceToReady only
+ * ever asks for PUBLISHED/WITHHELD when a row already exists — so the ON
+ * CONFLICT branch was always the one meant to fire, but Postgres never got
+ * that far. READY is unconditionally constraint-safe, and is never actually
+ * committed in this case since a conflict always resolves first.
+ */
 async function upsertPublication(
   itemId: string,
   eventId: string,
@@ -208,12 +224,14 @@ async function upsertPublication(
   hasUnresolvedTie: boolean,
   executor: Executor,
 ): Promise<void> {
+  const insertSafeState: ItemResultState = state === 'PUBLISHED' || state === 'WITHHELD' ? 'READY' : state;
+
   await executor
     .insertInto('item_publications')
     .values({
       event_id: eventId,
       item_id: itemId,
-      state,
+      state: insertSafeState,
       has_unresolved_tie: hasUnresolvedTie,
       last_computed_at: new Date(),
     })

@@ -14,7 +14,7 @@ import { validate } from '../../middleware/validate.js';
 import { AuditAction, actorFromRequest, writeAudit } from '../../services/audit.js';
 import { publishPanelChanged } from '../../services/realtime.js';
 import { errors } from '../../utils/errors.js';
-import { auditedInsert, auditedUpdate, crudContext } from '../../utils/crud.js';
+import { auditedDelete, auditedInsert, auditedUpdate, crudContext } from '../../utils/crud.js';
 import { asyncHandler, created, ok } from '../../utils/http.js';
 
 const panelSchema = z.object({
@@ -144,6 +144,39 @@ export function panelRoutes(): Router {
         crudContext(req, 'panel', actorFromRequest(req)),
       );
       return ok(res, row);
+    }),
+  );
+
+  /**
+   * A panel may only be deleted while no session references it (sessions.panel_id
+   * is ON DELETE RESTRICT — the database is the actual guarantee; this route just
+   * gives the refusal a clear message, same principle as ADM-02-03 for churches).
+   * Removing a never-used panel also cascades its (empty) judge assignments.
+   */
+  router.delete(
+    '/:id',
+    validate({ params: z.object({ id: z.string().uuid() }) }),
+    asyncHandler(async (req, res) => {
+      const { id } = req.params as { id: string };
+
+      const panel = await db.selectFrom('panels').select(['id', 'name']).where('id', '=', id).executeTakeFirst();
+      if (!panel) throw errors.notFound('Panel', id);
+
+      const { count } = await db
+        .selectFrom('sessions')
+        .select((eb) => eb.fn.countAll<number>().as('count'))
+        .where('panel_id', '=', id)
+        .executeTakeFirstOrThrow();
+
+      if (Number(count) > 0) {
+        throw errors.inUse(
+          `"${panel.name}" is used by ${count} session(s) and cannot be deleted. Deactivate it instead.`,
+          { sessionCount: Number(count) },
+        );
+      }
+
+      await auditedDelete('panels', id, crudContext(req, 'panel', actorFromRequest(req)));
+      return ok(res, { deleted: true });
     }),
   );
 

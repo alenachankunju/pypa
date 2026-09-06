@@ -12,7 +12,7 @@ import { requireActiveEvent } from '../../middleware/eventContext.js';
 import { validate } from '../../middleware/validate.js';
 import { actorFromRequest } from '../../services/audit.js';
 import { errors } from '../../utils/errors.js';
-import { auditedInsert, auditedUpdate, crudContext } from '../../utils/crud.js';
+import { auditedDelete, auditedInsert, auditedUpdate, crudContext } from '../../utils/crud.js';
 import { asyncHandler, created, ok } from '../../utils/http.js';
 import {
   closeSession,
@@ -202,6 +202,40 @@ export function sessionRoutes(): Router {
       );
 
       return ok(res, row);
+    }),
+  );
+
+  /**
+   * A session may only be deleted before it has ever been opened — once open,
+   * it's part of the official event-day record even if force-closed with
+   * nothing judged, and force-closure (not deletion) is the correction path for
+   * that. performances.session_id is ON DELETE RESTRICT regardless, so a
+   * session that somehow does have performances is refused by the database
+   * either way; the opened_at check just gives the common case a clear message
+   * before the query even runs.
+   */
+  router.delete(
+    '/:id',
+    requireCapability(Capability.MANAGE_SESSIONS),
+    validate({ params: z.object({ id: z.string().uuid() }) }),
+    asyncHandler(async (req, res) => {
+      const { id } = req.params as { id: string };
+
+      const session = await db
+        .selectFrom('sessions')
+        .select(['id', 'name', 'opened_at'])
+        .where('id', '=', id)
+        .executeTakeFirst();
+      if (!session) throw errors.notFound('Session', id);
+
+      if (session.opened_at !== null) {
+        throw errors.inUse(
+          `"${session.name}" has been opened and is part of the event record. Close or force-close it instead of deleting.`,
+        );
+      }
+
+      await auditedDelete('sessions', id, crudContext(req, 'session', actorFromRequest(req)));
+      return ok(res, { deleted: true });
     }),
   );
 

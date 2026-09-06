@@ -70,7 +70,7 @@ export function Registrations() {
       setItems(data);
       if (data.length > 0) setItemId(data[0]!.id);
     });
-    api.get<ChurchOption[]>('/api/admin/churches', { pageSize: 500 }).then(setChurches).catch(() => undefined);
+    api.get<ChurchOption[]>('/api/admin/churches', { pageSize: 200 }).then(setChurches).catch(() => undefined);
   }, []);
 
   function load() {

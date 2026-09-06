@@ -90,7 +90,7 @@ export function Members() {
   useEffect(load, [search, activeFilter]);
 
   useEffect(() => {
-    api.get<{ id: string; name: string }[]>('/api/admin/churches', { pageSize: 500 }).then(setChurches).catch(() => undefined);
+    api.get<{ id: string; name: string }[]>('/api/admin/churches', { pageSize: 200 }).then(setChurches).catch(() => undefined);
     api.get<CategoryOption[]>('/api/admin/categories', { pageSize: 200 }).then(setCategories).catch(() => undefined);
   }, []);
 

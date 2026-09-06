@@ -5,7 +5,7 @@
  */
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
-import { Banner, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
+import { Banner, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 
 interface Judge {
@@ -20,6 +20,7 @@ interface Panel {
   name: string;
   panelSize: number;
   chiefJudgeId: string | null;
+  isActive: boolean;
   judges: Judge[];
 }
 interface JudgeOption {
@@ -38,6 +39,9 @@ export function Panels() {
   const [selectedJudge, setSelectedJudge] = useState('');
   const [conflictWarning, setConflictWarning] = useState<{ message: string; requiresOverride: boolean } | null>(null);
   const [overrideReason, setOverrideReason] = useState('');
+  const [deleting, setDeleting] = useState<Panel | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   function load() {
     api.get<Panel[]>('/api/admin/panels').then(setPanels).catch(setError);
@@ -45,7 +49,7 @@ export function Panels() {
 
   useEffect(load, []);
   useEffect(() => {
-    api.get<JudgeOption[]>('/api/admin/users', { role: 'JUDGE', pageSize: 500 }).then(setJudgeOptions);
+    api.get<JudgeOption[]>('/api/admin/users', { role: 'JUDGE', pageSize: 200 }).then(setJudgeOptions).catch(() => undefined);
   }, []);
 
   async function createPanel() {
@@ -81,6 +85,31 @@ export function Panels() {
     load();
   }
 
+  async function toggleActive(panel: Panel) {
+    await api.patch(`/api/admin/panels/${panel.id}`, { isActive: !panel.isActive });
+    load();
+  }
+
+  async function confirmDeletePanel() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    try {
+      await api.del(`/api/admin/panels/${deleting.id}`);
+      setNotice(`${deleting.name} deleted.`);
+      setDeleting(null);
+      load();
+    } catch (err) {
+      setDeleting(null);
+      if (err instanceof ApiError && err.code === 'IN_USE') {
+        setNotice(err.message);
+      } else {
+        setError(err);
+      }
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
   if (error) return <ErrorState error={error} onRetry={load} />;
   if (!panels) return <LoadingState />;
 
@@ -97,9 +126,18 @@ export function Panels() {
         }
       />
 
+      {notice && (
+        <div className="banner banner-success">
+          <span className="grow">{notice}</span>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => setNotice(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-2">
         {panels.map((panel) => (
-          <div key={panel.id} className="card stack-sm">
+          <div key={panel.id} className="card stack-sm" style={!panel.isActive ? { opacity: 0.5 } : undefined}>
             <div className="row-between">
               <span className="strong">{panel.name}</span>
               <span className="badge badge-neutral">{panel.panelSize} judge(s)</span>
@@ -121,9 +159,17 @@ export function Panels() {
               ))}
             </div>
             {can('MANAGE_PANELS') && (
-              <button type="button" className="btn btn-sm btn-secondary" onClick={() => setAssigning(panel.id)}>
-                + Add judge
-              </button>
+              <div className="row row-wrap">
+                <button type="button" className="btn btn-sm btn-secondary" onClick={() => setAssigning(panel.id)}>
+                  + Add judge
+                </button>
+                <button type="button" className="btn btn-sm btn-ghost" onClick={() => void toggleActive(panel)}>
+                  {panel.isActive ? 'Deactivate' : 'Reactivate'}
+                </button>
+                <button type="button" className="btn btn-sm btn-danger" onClick={() => setDeleting(panel)}>
+                  Delete
+                </button>
+              </div>
             )}
           </div>
         ))}
@@ -177,6 +223,16 @@ export function Panels() {
           </button>
         </div>
       </Sheet>
+
+      <ConfirmDialog
+        open={deleting !== null}
+        title="Delete panel"
+        consequence={<><strong>{deleting?.name}</strong> will be permanently deleted. This cannot be undone.</>}
+        confirmLabel="Delete"
+        busy={deleteBusy}
+        onConfirm={() => void confirmDeletePanel()}
+        onCancel={() => setDeleting(null)}
+      />
     </div>
   );
 }

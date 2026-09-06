@@ -5,7 +5,7 @@
  */
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
-import { Banner, ErrorState, Field, LoadingState, PageHeader, Sheet, StatusBadge } from '../../components/ui';
+import { Banner, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet, StatusBadge } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 
 interface SessionRow {
@@ -37,6 +37,9 @@ export function Sessions() {
   const [creating, setCreating] = useState<{ name: string; panelId: string; itemIds: string[] } | null>(null);
   const [closeBlock, setCloseBlock] = useState<{ sessionId: string; incomplete: { itemName: string; participantName: string }[] } | null>(null);
   const [closeReason, setCloseReason] = useState('');
+  const [deleting, setDeleting] = useState<SessionRow | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   function load() {
     api.get<SessionRow[]>('/api/admin/sessions').then(setRows).catch(setError);
@@ -80,6 +83,26 @@ export function Sessions() {
     }
   }
 
+  async function confirmDeleteSession() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    try {
+      await api.del(`/api/admin/sessions/${deleting.id}`);
+      setNotice(`${deleting.name} deleted.`);
+      setDeleting(null);
+      load();
+    } catch (err) {
+      setDeleting(null);
+      if (err instanceof ApiError && err.code === 'IN_USE') {
+        setNotice(err.message);
+      } else {
+        setError(err);
+      }
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
   if (error) return <ErrorState error={error} onRetry={load} />;
   if (!rows) return <LoadingState />;
 
@@ -95,6 +118,15 @@ export function Sessions() {
           )
         }
       />
+
+      {notice && (
+        <div className="banner banner-success">
+          <span className="grow">{notice}</span>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => setNotice(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
 
       <div className="card-flush">
         <div className="table-wrap">
@@ -133,6 +165,11 @@ export function Sessions() {
                     {can('MANAGE_SESSIONS') && s.status === 'OPEN' && (
                       <button type="button" className="btn btn-sm btn-secondary" onClick={() => void closeSession(s.id)}>
                         Close
+                      </button>
+                    )}
+                    {can('MANAGE_SESSIONS') && s.status === 'DRAFT' && (
+                      <button type="button" className="btn btn-sm btn-danger" onClick={() => setDeleting(s)}>
+                        Delete
                       </button>
                     )}
                   </td>
@@ -223,6 +260,16 @@ export function Sessions() {
           </div>
         )}
       </Sheet>
+
+      <ConfirmDialog
+        open={deleting !== null}
+        title="Delete session"
+        consequence={<><strong>{deleting?.name}</strong> will be permanently deleted. This cannot be undone.</>}
+        confirmLabel="Delete"
+        busy={deleteBusy}
+        onConfirm={() => void confirmDeleteSession()}
+        onCancel={() => setDeleting(null)}
+      />
     </div>
   );
 }
