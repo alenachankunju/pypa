@@ -40,6 +40,10 @@ export function Sessions() {
   const [deleting, setDeleting] = useState<SessionRow | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [addingItemsTo, setAddingItemsTo] = useState<SessionRow | null>(null);
+  const [selectedAddItemIds, setSelectedAddItemIds] = useState<string[]>([]);
+  const [addItemsBusy, setAddItemsBusy] = useState(false);
+  const [addItemsError, setAddItemsError] = useState<unknown>(null);
 
   function load() {
     api.get<SessionRow[]>('/api/admin/sessions').then(setRows).catch(setError);
@@ -80,6 +84,34 @@ export function Sessions() {
       } else {
         setError(err);
       }
+    }
+  }
+
+  function startAddItems(session: SessionRow) {
+    setAddingItemsTo(session);
+    setSelectedAddItemIds([]);
+    setAddItemsError(null);
+  }
+
+  async function submitAddItems() {
+    if (!addingItemsTo || selectedAddItemIds.length === 0) return;
+    setAddItemsBusy(true);
+    setAddItemsError(null);
+    try {
+      const result = await api.post<{ itemsAdded: number; performancesCreated: number }>(
+        `/api/admin/sessions/${addingItemsTo.id}/items`,
+        { itemIds: selectedAddItemIds },
+      );
+      setNotice(
+        `${result.itemsAdded} item(s) added to "${addingItemsTo.name}"` +
+          (result.performancesCreated > 0 ? ` — ${result.performancesCreated} performance(s) created and ready on stage.` : '.'),
+      );
+      setAddingItemsTo(null);
+      load();
+    } catch (err) {
+      setAddItemsError(err);
+    } finally {
+      setAddItemsBusy(false);
     }
   }
 
@@ -165,6 +197,11 @@ export function Sessions() {
                     {can('MANAGE_SESSIONS') && s.status === 'OPEN' && (
                       <button type="button" className="btn btn-sm btn-secondary" onClick={() => void closeSession(s.id)}>
                         Close
+                      </button>
+                    )}
+                    {can('MANAGE_SESSIONS') && (s.status === 'DRAFT' || s.status === 'OPEN') && (
+                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => startAddItems(s)}>
+                        + Add item
                       </button>
                     )}
                     {can('MANAGE_SESSIONS') && s.status === 'DRAFT' && (
@@ -257,6 +294,55 @@ export function Sessions() {
             >
               Force close
             </button>
+          </div>
+        )}
+      </Sheet>
+
+      <Sheet
+        open={addingItemsTo !== null}
+        onClose={() => setAddingItemsTo(null)}
+        title={addingItemsTo ? `Add item — ${addingItemsTo.name}` : 'Add item'}
+      >
+        {addingItemsTo && (
+          <div className="stack">
+            {addingItemsTo.status === 'OPEN' && (
+              <p className="text-sm muted">
+                This session is already open — any item you add here gets performances created for its current
+                entries right away, ready to put on stage.
+              </p>
+            )}
+            <Field label="Items">
+              <div className="stack-sm" style={{ maxHeight: 240, overflowY: 'auto' }}>
+                {items.map((item) => (
+                  <label key={item.id} className="row text-sm">
+                    <input
+                      type="checkbox"
+                      checked={selectedAddItemIds.includes(item.id)}
+                      onChange={(e) =>
+                        setSelectedAddItemIds((prev) =>
+                          e.target.checked ? [...prev, item.id] : prev.filter((id) => id !== item.id),
+                        )
+                      }
+                    />
+                    {item.name}
+                  </label>
+                ))}
+              </div>
+            </Field>
+            {addItemsError !== null && <ErrorState error={addItemsError} />}
+            <div className="row" style={{ justifyContent: 'flex-end' }}>
+              <button type="button" className="btn btn-ghost" onClick={() => setAddingItemsTo(null)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={selectedAddItemIds.length === 0 || addItemsBusy}
+                onClick={() => void submitAddItems()}
+              >
+                {addItemsBusy ? 'Adding…' : 'Add'}
+              </button>
+            </div>
           </div>
         )}
       </Sheet>

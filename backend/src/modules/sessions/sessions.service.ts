@@ -18,6 +18,102 @@ export interface OpenSessionResult {
   warnings: string[];
 }
 
+interface PanelJudgeRow {
+  user_id: string;
+  weight: string | number;
+  full_name: string;
+  is_active: boolean;
+  chief_judge_id: string | null;
+}
+
+/** ADM-08-02: the completion target is the actual assigned count, active judges only. */
+async function loadActiveJudges(
+  trx: Executor,
+  panelId: string,
+): Promise<{ active: PanelJudgeRow[]; total: number }> {
+  const panelJudges = await trx
+    .selectFrom('panel_judges as pj')
+    .innerJoin('users as u', 'u.id', 'pj.user_id')
+    .innerJoin('panels as p', 'p.id', 'pj.panel_id')
+    .select(['pj.user_id', 'pj.weight', 'u.full_name', 'u.is_active', 'p.chief_judge_id'])
+    .where('pj.panel_id', '=', panelId)
+    .where('pj.removed_at', 'is', null)
+    .execute();
+
+  return { active: panelJudges.filter((j) => j.is_active), total: panelJudges.length };
+}
+
+/**
+ * Materialise SCHEDULED performances (+ their judge-panel snapshot) for every
+ * still-unperformed REGISTERED registration across the given items. Shared by
+ * openSession() (every item in the session, session DRAFT -> OPEN) and
+ * addItemsToSession() (just the newly-added item, session already OPEN) —
+ * same operation, different trigger, so a mid-session item addition gets
+ * exactly the same panel-snapshot guarantee (FSD 7.2) as opening day one.
+ */
+async function materializePerformances(
+  trx: Executor,
+  params: { eventId: string; sessionId: string; itemIds: string[]; activeJudges: PanelJudgeRow[]; userId: string },
+): Promise<{ created: number; existing: number }> {
+  const { eventId, sessionId, itemIds, activeJudges, userId } = params;
+  if (itemIds.length === 0) return { created: 0, existing: 0 };
+
+  const registrations = await trx
+    .selectFrom('registrations')
+    .select(['id', 'item_id', 'call_order'])
+    .where('item_id', 'in', itemIds)
+    .where('status', '=', 'REGISTERED')
+    .execute();
+
+  const existingPerformances = await trx
+    .selectFrom('performances')
+    .select(['registration_id'])
+    .where('item_id', 'in', itemIds)
+    .execute();
+
+  const alreadyHasPerformance = new Set(existingPerformances.map((e) => e.registration_id));
+  const toCreate = registrations.filter((r) => !alreadyHasPerformance.has(r.id));
+
+  let created = 0;
+  for (const registration of toCreate) {
+    const performance = await trx
+      .insertInto('performances')
+      .values({
+        event_id: eventId,
+        registration_id: registration.id,
+        item_id: registration.item_id,
+        session_id: sessionId,
+        attempt_no: 1,
+        // FSD 7.2: snapshot, never read live from the panel afterwards.
+        panel_size: activeJudges.length,
+        status: 'SCHEDULED',
+        call_order: registration.call_order,
+        created_by: userId,
+        updated_by: userId,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+
+    // ADM-09-08 needs the expected judges by name, so the panel composition is
+    // snapshotted alongside the size.
+    await trx
+      .insertInto('performance_judges')
+      .values(
+        activeJudges.map((judge) => ({
+          performance_id: performance.id,
+          judge_id: judge.user_id,
+          weight: Number(judge.weight),
+          is_chief: judge.user_id === judge.chief_judge_id,
+        })),
+      )
+      .execute();
+
+    created += 1;
+  }
+
+  return { created, existing: registrations.length - created };
+}
+
 /**
  * ADM-08-04: "Open a session. Only when a session is open can its judges enter
  * marks."
@@ -58,17 +154,7 @@ export async function openSession(
       );
     }
 
-    // ADM-08-02: the completion target is the actual assigned count.
-    const panelJudges = await trx
-      .selectFrom('panel_judges as pj')
-      .innerJoin('users as u', 'u.id', 'pj.user_id')
-      .innerJoin('panels as p', 'p.id', 'pj.panel_id')
-      .select(['pj.user_id', 'pj.weight', 'u.full_name', 'u.is_active', 'p.chief_judge_id'])
-      .where('pj.panel_id', '=', session.panel_id)
-      .where('pj.removed_at', 'is', null)
-      .execute();
-
-    const activeJudges = panelJudges.filter((j) => j.is_active);
+    const { active: activeJudges, total: totalJudges } = await loadActiveJudges(trx, session.panel_id);
 
     if (activeJudges.length === 0) {
       throw errors.conflict(
@@ -77,9 +163,9 @@ export async function openSession(
     }
 
     const warnings: string[] = [];
-    if (activeJudges.length < panelJudges.length) {
+    if (activeJudges.length < totalJudges) {
       warnings.push(
-        `${panelJudges.length - activeJudges.length} judge(s) on this panel have deactivated accounts and are excluded. The completion target is ${activeJudges.length}.`,
+        `${totalJudges - activeJudges.length} judge(s) on this panel have deactivated accounts and are excluded. The completion target is ${activeJudges.length}.`,
       );
     }
 
@@ -97,59 +183,13 @@ export async function openSession(
 
     const itemIds = items.map((i) => i.item_id);
 
-    const registrations = await trx
-      .selectFrom('registrations')
-      .select(['id', 'item_id', 'call_order'])
-      .where('item_id', 'in', itemIds)
-      .where('status', '=', 'REGISTERED')
-      .execute();
-
-    const existing = await trx
-      .selectFrom('performances')
-      .select(['registration_id'])
-      .where('item_id', 'in', itemIds)
-      .execute();
-
-    const alreadyHasPerformance = new Set(existing.map((e) => e.registration_id));
-    const toCreate = registrations.filter((r) => !alreadyHasPerformance.has(r.id));
-
-    let performancesCreated = 0;
-
-    for (const registration of toCreate) {
-      const performance = await trx
-        .insertInto('performances')
-        .values({
-          event_id: eventId,
-          registration_id: registration.id,
-          item_id: registration.item_id,
-          session_id: sessionId,
-          attempt_no: 1,
-          // FSD 7.2: snapshot, never read live from the panel afterwards.
-          panel_size: activeJudges.length,
-          status: 'SCHEDULED',
-          call_order: registration.call_order,
-          created_by: userId,
-          updated_by: userId,
-        })
-        .returning('id')
-        .executeTakeFirstOrThrow();
-
-      // ADM-09-08 needs the expected judges by name, so the panel composition is
-      // snapshotted alongside the size.
-      await trx
-        .insertInto('performance_judges')
-        .values(
-          activeJudges.map((judge) => ({
-            performance_id: performance.id,
-            judge_id: judge.user_id,
-            weight: Number(judge.weight),
-            is_chief: judge.user_id === judge.chief_judge_id,
-          })),
-        )
-        .execute();
-
-      performancesCreated += 1;
-    }
+    const { created: performancesCreated, existing: performancesExisting } = await materializePerformances(trx, {
+      eventId,
+      sessionId,
+      itemIds,
+      activeJudges,
+      userId,
+    });
 
     await trx
       .updateTable('sessions')
@@ -180,9 +220,115 @@ export async function openSession(
       status: 'OPEN' as const,
       panelSize: activeJudges.length,
       performancesCreated,
-      performancesExisting: registrations.length - performancesCreated,
+      performancesExisting,
       warnings,
     };
+  });
+}
+
+export interface AddItemsToSessionResult {
+  sessionId: string;
+  itemsAdded: number;
+  performancesCreated: number;
+}
+
+/**
+ * Add item(s) to a session after it was created — the original creation form
+ * (ADM-08-03) takes the item list once and PATCH deliberately can't change
+ * it, so there was previously no way to bring a new item into a session that
+ * was already open without creating a whole second session for it. If the
+ * session is already OPEN, this immediately materialises SCHEDULED
+ * performances for the new item's current registrations too (same snapshot
+ * guarantee as opening day one) — otherwise the added item silently never
+ * gets a performance created for it and can't be put on stage. If the
+ * session is still DRAFT, opening it later does that naturally.
+ */
+export async function addItemsToSession(
+  sessionId: string,
+  eventId: string,
+  itemIds: string[],
+  actor: AuditActor,
+  userId: string,
+): Promise<AddItemsToSessionResult> {
+  return db.transaction().execute(async (trx) => {
+    const session = await trx
+      .selectFrom('sessions')
+      .select(['id', 'name', 'status', 'panel_id'])
+      .where('id', '=', sessionId)
+      .where('event_id', '=', eventId)
+      .forUpdate()
+      .executeTakeFirst();
+
+    if (!session) throw errors.notFound('Session', sessionId);
+    if (session.status === 'CLOSED' || session.status === 'FORCE_CLOSED') {
+      throw errors.conflict(`Session "${session.name}" is closed — create a new session for further items.`);
+    }
+
+    const items = await trx
+      .selectFrom('items')
+      .select(['id', 'name'])
+      .where('id', 'in', itemIds)
+      .where('event_id', '=', eventId)
+      .execute();
+    if (items.length !== itemIds.length) throw errors.notFound('Item', itemIds.join(', '));
+
+    const existingLinks = await trx
+      .selectFrom('session_items')
+      .select(['item_id', 'display_order'])
+      .where('session_id', '=', sessionId)
+      .execute();
+
+    const alreadyLinked = new Set(existingLinks.map((l) => l.item_id));
+    const newItemIds = itemIds.filter((id) => !alreadyLinked.has(id));
+
+    if (newItemIds.length === 0) {
+      throw errors.conflict('Every selected item is already part of this session.');
+    }
+
+    let nextOrder = existingLinks.reduce((max, l) => Math.max(max, l.display_order), -1) + 1;
+
+    await trx
+      .insertInto('session_items')
+      .values(
+        newItemIds.map((itemId) => ({
+          session_id: sessionId,
+          item_id: itemId,
+          display_order: nextOrder++,
+          created_by: userId,
+          updated_by: userId,
+        })),
+      )
+      .execute();
+
+    let performancesCreated = 0;
+    if (session.status === 'OPEN') {
+      const { active: activeJudges } = await loadActiveJudges(trx, session.panel_id);
+      const result = await materializePerformances(trx, {
+        eventId,
+        sessionId,
+        itemIds: newItemIds,
+        activeJudges,
+        userId,
+      });
+      performancesCreated = result.created;
+    }
+
+    await writeAudit(
+      {
+        eventId,
+        actor,
+        action: AuditAction.UPDATED,
+        entityType: 'session',
+        entityId: sessionId,
+        newValue: { itemsAdded: items.map((i) => i.name), performancesCreated },
+        reason: `Added ${items.length} item(s) to session "${session.name}" after creation (ADM-08-03).`,
+      },
+      trx,
+    );
+
+    if (performancesCreated > 0) publishSessionStatus(sessionId, 'OPEN');
+
+    return { sessionId, itemsAdded: newItemIds.length, performancesCreated };
   });
 }
 

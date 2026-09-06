@@ -15,6 +15,7 @@ import { errors } from '../../utils/errors.js';
 import { auditedDelete, auditedInsert, auditedUpdate, crudContext } from '../../utils/crud.js';
 import { asyncHandler, created, ok } from '../../utils/http.js';
 import {
+  addItemsToSession,
   closeSession,
   findOverlappingAssignments,
   listIncompletePerformances,
@@ -236,6 +237,31 @@ export function sessionRoutes(): Router {
 
       await auditedDelete('sessions', id, crudContext(req, 'session', actorFromRequest(req)));
       return ok(res, { deleted: true });
+    }),
+  );
+
+  /**
+   * Add item(s) to a session after creation. ADM-08-03's create form takes the
+   * item list once and PATCH deliberately excludes itemIds — there was
+   * previously no way to bring a new item into a session already OPEN
+   * without creating a second session for it. If the session is OPEN, this
+   * immediately materialises performances for the new item's current
+   * registrations too, same as opening day one; a DRAFT session picks them up
+   * naturally when it's opened.
+   */
+  router.post(
+    '/:id/items',
+    requireCapability(Capability.MANAGE_SESSIONS),
+    validate({
+      params: z.object({ id: z.string().uuid() }),
+      body: z.object({ itemIds: z.array(z.string().uuid()).min(1).max(200) }),
+    }),
+    asyncHandler(async (req, res) => {
+      const { id } = req.params as { id: string };
+      const { itemIds } = req.body as { itemIds: string[] };
+
+      const result = await addItemsToSession(id, req.eventId!, itemIds, actorFromRequest(req), req.auth!.userId);
+      return created(res, result);
     }),
   );
 
