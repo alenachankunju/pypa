@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+/// <reference types="vite-plugin-pwa/react" />
 
 /**
  * Not yet in this TS version's lib.dom.d.ts. Chrome/Edge/Android support it

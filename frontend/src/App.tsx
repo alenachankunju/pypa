@@ -13,6 +13,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { useAuth } from './lib/auth';
 import { LoadingState } from './components/ui';
+import { UpdatePrompt } from './components/UpdatePrompt';
 import { Login } from './features/auth/Login';
 import { ChangePassword } from './features/auth/ChangePassword';
 import { JudgeSessionProvider } from './features/judge/JudgeSession';
@@ -59,57 +60,60 @@ export function App() {
   const { status } = useAuth();
 
   return (
-    <Routes>
-      <Route
-        path="/login"
-        element={status === 'authenticated' ? <Navigate to="/" replace /> : <Login />}
-      />
+    <>
+      <UpdatePrompt />
+      <Routes>
+        <Route
+          path="/login"
+          element={status === 'authenticated' ? <Navigate to="/" replace /> : <Login />}
+        />
 
-      <Route
-        path="/change-password"
-        element={
-          <RequireAuth>
-            <ChangePassword />
-          </RequireAuth>
-        }
-      />
+        <Route
+          path="/change-password"
+          element={
+            <RequireAuth>
+              <ChangePassword />
+            </RequireAuth>
+          }
+        />
 
-      <Route
-        path="/judge/*"
-        element={
-          <RequireAuth>
-            <RequireRole role="JUDGE">
-              <JudgeSessionProvider>
-                <Routes>
-                  <Route element={<JudgeShell />}>
-                    <Route index element={<NowOnStage />} />
-                    <Route path="search" element={<Search />} />
-                    <Route path="member/:memberId" element={<MemberItems />} />
-                    <Route path="score/:performanceId" element={<MarkEntry />} />
-                    <Route path="my-marks" element={<MyMarks />} />
-                    <Route path="profile" element={<Profile />} />
-                  </Route>
-                </Routes>
-              </JudgeSessionProvider>
-            </RequireRole>
-          </RequireAuth>
-        }
-      />
+        <Route
+          path="/judge/*"
+          element={
+            <RequireAuth>
+              <RequireRole role="JUDGE">
+                <JudgeSessionProvider>
+                  <Routes>
+                    <Route element={<JudgeShell />}>
+                      <Route index element={<NowOnStage />} />
+                      <Route path="search" element={<Search />} />
+                      <Route path="member/:memberId" element={<MemberItems />} />
+                      <Route path="score/:performanceId" element={<MarkEntry />} />
+                      <Route path="my-marks" element={<MyMarks />} />
+                      <Route path="profile" element={<Profile />} />
+                    </Route>
+                  </Routes>
+                </JudgeSessionProvider>
+              </RequireRole>
+            </RequireAuth>
+          }
+        />
 
-      <Route
-        path="/admin/*"
-        element={
-          <RequireAuth>
-            <RequireRole role="ADMIN_LIKE">
-              <AdminApp />
-            </RequireRole>
-          </RequireAuth>
-        }
-      />
+        <Route
+          path="/admin/*"
+          element={
+            <RequireAuth>
+              <RequireRole role="ADMIN_LIKE">
+                <AdminApp />
+              </RequireRole>
+            </RequireAuth>
+          }
+        />
 
-      <Route path="/" element={<RootRedirect />} />
-      <Route path="*" element={<RootRedirect />} />
-    </Routes>
+        <Route path="/" element={<RootRedirect />} />
+        <Route path="*" element={<RootRedirect />} />
+      </Routes>
+    </>
   );
 }
 
