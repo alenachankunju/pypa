@@ -19,7 +19,14 @@
 
 [functions]
   node_bundler = "esbuild"
-  external_node_modules = ["@node-rs/argon2", "sharp", "pg-native"]
+  # pdfmake's PDF engine (@foliojs-fork/pdfkit) pulls in @foliojs-fork/fontkit,
+  # which reads a data file (data.trie) via fs.readFileSync at module load —
+  # esbuild's bundler doesn't follow that and silently drops it, crashing every
+  # report request with ENOENT in production despite working locally. Excluding
+  # these three from bundling makes Netlify ship their real node_modules
+  # directories as-is instead, asset files included — the same reason argon2/
+  # sharp/pg-native are already excluded here.
+  external_node_modules = ["@node-rs/argon2", "sharp", "pg-native", "pdfmake", "@foliojs-fork/pdfkit", "@foliojs-fork/fontkit"]
   included_files = ["migrations/**"]
 
 [functions.api]
