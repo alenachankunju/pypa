@@ -26,7 +26,42 @@ const eventSchema = z.object({
   /** ADM-03-03: the single event-wide age cut-off. */
   ageCutoffDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   timezone: z.string().max(60).optional(),
+  /** ADM-14-05: months after end_date before audit_logs become purge-eligible. */
+  auditRetentionMonths: z.coerce.number().int().min(1).max(240).optional(),
 });
+
+/** The frontend reads camelCase everywhere else in the app; this row is no exception. */
+function mapEvent(row: {
+  id: string;
+  name: string;
+  edition: string | null;
+  logo_path: string | null;
+  start_date: unknown;
+  end_date: unknown;
+  age_cutoff_date: unknown;
+  timezone: string;
+  status: string;
+  freeze_mode: boolean;
+  freeze_reason: string | null;
+  audit_retention_months: number;
+  archived_at: unknown;
+}) {
+  return {
+    id: row.id,
+    name: row.name,
+    edition: row.edition,
+    logoPath: row.logo_path,
+    startDate: row.start_date,
+    endDate: row.end_date,
+    ageCutoffDate: row.age_cutoff_date,
+    timezone: row.timezone,
+    status: row.status,
+    freezeMode: row.freeze_mode,
+    freezeReason: row.freeze_reason,
+    auditRetentionMonths: row.audit_retention_months,
+    archivedAt: row.archived_at,
+  };
+}
 
 export function eventRoutes(): Router {
   const router = Router();
@@ -49,12 +84,13 @@ export function eventRoutes(): Router {
           'status',
           'freeze_mode',
           'freeze_reason',
+          'audit_retention_months',
           'archived_at',
         ])
         .orderBy('created_at', 'desc')
         .execute();
 
-      return ok(res, events);
+      return ok(res, events.map(mapEvent));
     }),
   );
 
@@ -75,7 +111,7 @@ export function eventRoutes(): Router {
         .where('id', '=', req.eventId)
         .executeTakeFirstOrThrow();
 
-      return ok(res, event);
+      return ok(res, mapEvent(event));
     }),
   );
 
@@ -174,7 +210,7 @@ export function eventRoutes(): Router {
       });
 
       invalidateEventCache();
-      return created(res, event);
+      return created(res, mapEvent(event));
     }),
   );
 
@@ -223,13 +259,16 @@ export function eventRoutes(): Router {
           ...(input.endDate !== undefined ? { end_date: input.endDate } : {}),
           ...(input.ageCutoffDate !== undefined ? { age_cutoff_date: input.ageCutoffDate } : {}),
           ...(input.timezone !== undefined ? { timezone: input.timezone } : {}),
+          ...(input.auditRetentionMonths !== undefined
+            ? { audit_retention_months: input.auditRetentionMonths }
+            : {}),
           updated_by: req.auth!.userId,
         },
         crudContext(req, 'event', actorFromRequest(req)),
       );
 
       invalidateEventCache();
-      return ok(res, row);
+      return ok(res, mapEvent(row as Parameters<typeof mapEvent>[0]));
     }),
   );
 

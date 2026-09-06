@@ -13,7 +13,8 @@ import { z } from 'zod';
 import { db } from '../../db/pool.js';
 import { Capability, requireCapability } from '../../middleware/authorize.js';
 import { validate } from '../../middleware/validate.js';
-import { AuditAction } from '../../services/audit.js';
+import { AuditAction, auditRetentionStatus } from '../../services/audit.js';
+import { requireActiveEvent } from '../../middleware/eventContext.js';
 import { asyncHandler, ok, pageParams, paginated } from '../../utils/http.js';
 
 export function auditRoutes(): Router {
@@ -312,6 +313,13 @@ export function auditRoutes(): Router {
         },
       });
     }),
+  );
+
+  /** ADM-14-05: how many rows are past the configured retention cut-off. */
+  router.get(
+    '/retention',
+    requireActiveEvent(),
+    asyncHandler(async (req, res) => ok(res, await auditRetentionStatus(req.eventId!))),
   );
 
   return router;

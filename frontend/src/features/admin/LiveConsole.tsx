@@ -25,7 +25,7 @@ interface ProgressPerformance {
   panelSize: number;
   submittedCount: number;
   outstandingCount: number;
-  missingJudges: { judgeId: string; fullName: string }[];
+  missingJudges: { judgeId: string; fullName: string; queuedMarks: number }[];
   isCurrent: boolean;
   callOrder: number | null;
   chestNumber: string | null;
@@ -35,11 +35,19 @@ interface ProgressPerformance {
   judgeMarks: { judgeId: string; judgeName: string; mark: number }[];
 }
 
+interface ItemProgress {
+  itemId: string;
+  itemName: string;
+  total: number;
+  complete: number;
+}
+
 interface ProgressResponse {
   session: SessionSummary;
   current: ProgressPerformance | null;
   performances: ProgressPerformance[];
   outstanding: { performanceId: string; itemName: string; participantName: string; missingJudges: { fullName: string }[] }[];
+  itemProgress: ItemProgress[];
   totals: { performances: number; complete: number; absent: number; void: number; pending: number };
   canSeeMarks: boolean;
 }
@@ -190,7 +198,9 @@ export function LiveConsole() {
                   <div className="judge-tiles">
                     {progress.current.missingJudges.map((j) => (
                       <div key={j.judgeId} className="judge-tile is-waiting">
-                        <span className="judge-tile-status">Waiting</span>
+                        <span className="judge-tile-status">
+                          {j.queuedMarks > 0 ? `${j.queuedMarks} queued offline` : 'Waiting'}
+                        </span>
                         {j.fullName}
                       </div>
                     ))}
@@ -249,6 +259,26 @@ export function LiveConsole() {
                   )}
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* ADM-09-09: per-item progress, complementing the session-wide totals above. */}
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">Progress by item</span>
+            </div>
+            <div className="card-body stack-sm">
+              {progress.itemProgress.map((ip) => (
+                <div key={ip.itemId} className="row-between">
+                  <span className="text-sm">{ip.itemName}</span>
+                  <div className="row" style={{ minWidth: 160 }}>
+                    <ProgressBar value={ip.complete} max={ip.total} />
+                    <span className="num text-sm muted">
+                      {ip.complete}/{ip.total}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 

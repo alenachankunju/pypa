@@ -437,6 +437,28 @@ export function configRoutes(): Router {
     }),
   );
 
+  /** ADM-11-04: current per-item point overrides, so the editor has something to load. */
+  router.get(
+    '/scoring/items/:itemId/points',
+    requireCapability(Capability.CONFIGURE_SCORING),
+    validate({ params: z.object({ itemId: z.string().uuid() }) }),
+    asyncHandler(async (req, res) => {
+      const { itemId } = req.params as { itemId: string };
+
+      const positionPoints = await db
+        .selectFrom('position_points')
+        .select(['position', 'points'])
+        .where('item_id', '=', itemId)
+        .orderBy('position')
+        .execute();
+
+      return ok(res, {
+        itemId,
+        positionPoints: positionPoints.map((p) => ({ position: p.position, points: Number(p.points) })),
+      });
+    }),
+  );
+
   /** ADM-11-04: per-item point overrides and weight multipliers. */
   router.put(
     '/scoring/items/:itemId/points',

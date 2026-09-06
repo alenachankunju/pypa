@@ -51,7 +51,7 @@ const GROUPS: NavGroup[] = [
   {
     label: 'More',
     items: [
-      { to: '/admin/judges', label: 'Judges', icon: '⚖', capability: Capability.MANAGE_JUDGE_ACCOUNTS },
+      { to: '/admin/judges', label: 'Users', icon: '⚖', capability: Capability.MANAGE_JUDGE_ACCOUNTS },
       { to: '/admin/panels', label: 'Panels', icon: '⚑', capability: Capability.MANAGE_PANELS },
       { to: '/admin/sessions', label: 'Sessions', icon: '⏱', capability: Capability.MANAGE_SESSIONS },
       { to: '/admin/config', label: 'Scoring config', icon: '⚙', capability: Capability.CONFIGURE_SCORING },

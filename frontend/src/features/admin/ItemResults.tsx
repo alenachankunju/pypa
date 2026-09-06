@@ -51,6 +51,7 @@ export function ItemResults() {
   const navigate = useNavigate();
   const { can } = useAuth();
   const [data, setData] = useState<ItemResultResponse | null>(null);
+  const [unpublishedItemCount, setUnpublishedItemCount] = useState<number | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState<'publish' | 'unpublish' | 'provisional' | null>(null);
@@ -59,8 +60,11 @@ export function ItemResults() {
 
   const load = useCallback(() => {
     api
-      .get<ItemResultResponse>(`/api/admin/results/items/${itemId}`, { recompute: 'true' })
-      .then(setData)
+      .getWithMeta<ItemResultResponse>(`/api/admin/results/items/${itemId}`, { recompute: 'true' })
+      .then((r) => {
+        setData(r.data);
+        setUnpublishedItemCount(typeof r.meta?.unpublishedItemCount === 'number' ? r.meta.unpublishedItemCount : null);
+      })
       .catch(setError);
   }, [itemId]);
 
@@ -136,6 +140,10 @@ export function ItemResults() {
           </>
         }
       />
+
+      {unpublishedItemCount !== null && unpublishedItemCount > 0 && (
+        <p className="text-sm muted">{unpublishedItemCount} item(s) event-wide still unpublished (ADM-12-09).</p>
+      )}
 
       {data.publication.hasUnresolvedTie && (
         <Banner tone="danger" title="This item has a tie that requires a decision">

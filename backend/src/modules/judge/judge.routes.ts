@@ -732,6 +732,30 @@ export function judgeRoutes(): Router {
     }),
   );
 
+  /**
+   * JDG-08-07: the judge's device reports how many marks are sitting unsent in
+   * its own offline queue, so a coordinator watching the live console can tell
+   * a judge who is genuinely behind from one who is just quietly synced. This
+   * is a self-report for operational visibility, not a correctness control —
+   * the queue itself, and what it eventually submits, is unaffected either way.
+   */
+  router.post(
+    '/queue-status',
+    requireCapability(Capability.ENTER_SCORE),
+    validate({ body: z.object({ count: z.coerce.number().int().min(0).max(1000) }) }),
+    asyncHandler(async (req, res) => {
+      const { count } = req.body as { count: number };
+
+      await db
+        .updateTable('user_sessions')
+        .set({ queued_marks: count, queued_marks_reported_at: new Date() })
+        .where('id', '=', req.auth!.sessionId)
+        .execute();
+
+      return ok(res, { acknowledged: true });
+    }),
+  );
+
   return router;
 }
 

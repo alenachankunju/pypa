@@ -100,6 +100,9 @@ export interface UserSessionsTable {
   revoked_at: Date | null;
   revoked_by: string | null;
   revoked_reason: string | null;
+  /** JDG-08-07: self-reported offline-queue depth for this device's session. */
+  queued_marks: Generated<number>;
+  queued_marks_reported_at: Date | null;
 }
 
 export interface LoginAttemptsTable {
@@ -123,6 +126,8 @@ export interface EventsTable {
   timezone: Generated<string>;
   freeze_mode: Generated<boolean>;
   freeze_reason: string | null;
+  /** ADM-14-05: months after end_date before audit_logs become purge-eligible. */
+  audit_retention_months: Generated<number>;
   status: Generated<EventStatus>;
   archived_at: Date | null;
   created_at: CreatedAt;

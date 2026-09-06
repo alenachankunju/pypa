@@ -38,6 +38,7 @@ import { registrationRoutes } from './modules/registrations/registrations.routes
 import { resultRoutes } from './modules/results/results.routes.js';
 import { scoreRoutes } from './modules/scores/scores.routes.js';
 import { sessionRoutes } from './modules/sessions/sessions.routes.js';
+import { snapshotRoutes } from './modules/snapshots/snapshots.routes.js';
 import { userRoutes } from './modules/users/users.routes.js';
 
 /** API version, fixed from the first release (FSD 11.6). */
@@ -148,6 +149,7 @@ export function createApp(): Express {
   admin.use('/results', resultRoutes());
   admin.use('/config', configRoutes());
   admin.use('/audit', auditRoutes());
+  admin.use('/snapshots', snapshotRoutes());
 
   authed.use('/admin', admin);
   app.use(API_PREFIX, authed);

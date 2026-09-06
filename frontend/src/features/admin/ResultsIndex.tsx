@@ -4,7 +4,7 @@
  */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../../lib/api';
+import { api, type ApiMeta } from '../../lib/api';
 import { ErrorState, LoadingState, PageHeader, StatusBadge } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 
@@ -23,12 +23,19 @@ interface ItemReadiness {
 export function ResultsIndex() {
   const { can } = useAuth();
   const [rows, setRows] = useState<ItemReadiness[] | null>(null);
+  const [meta, setMeta] = useState<ApiMeta>({});
   const [error, setError] = useState<unknown>(null);
   const [confirm, setConfirm] = useState<{ itemName: string }[] | null>(null);
   const [busy, setBusy] = useState(false);
 
   function load() {
-    api.get<ItemReadiness[]>('/api/admin/results/items').then(setRows).catch(setError);
+    api
+      .getWithMeta<ItemReadiness[]>('/api/admin/results/items')
+      .then((r) => {
+        setRows(r.data);
+        setMeta(r.meta ?? {});
+      })
+      .catch(setError);
   }
 
   useEffect(load, []);
@@ -58,6 +65,11 @@ export function ResultsIndex() {
     <div className="stack-lg">
       <PageHeader
         title="Item results"
+        subtitle={
+          typeof meta.unpublishedItemCount === 'number'
+            ? `${meta.unpublishedItemCount} item(s) still unpublished`
+            : undefined
+        }
         actions={
           can('PUBLISH_RESULTS') && (
             <button type="button" className="btn btn-primary" onClick={() => void previewPublishAll()}>

@@ -18,28 +18,46 @@ interface AuditRow {
   reason: string | null;
 }
 
+interface FilterOptions {
+  entityTypes: string[];
+  actors: { id: string; name: string }[];
+  knownActions: string[];
+}
+
 export function AuditLog() {
   const [rows, setRows] = useState<AuditRow[] | null>(null);
   const [search, setSearch] = useState('');
   const [action, setAction] = useState('');
-  const [actions, setActions] = useState<string[]>([]);
+  const [entityType, setEntityType] = useState('');
+  const [actorId, setActorId] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [filters, setFilters] = useState<FilterOptions>({ entityTypes: [], actors: [], knownActions: [] });
   const [error, setError] = useState<unknown>(null);
 
   useEffect(() => {
     api
-      .get<{ knownActions: string[] }>('/api/admin/audit/filters')
-      .then((r) => setActions(r.knownActions))
+      .get<FilterOptions>('/api/admin/audit/filters')
+      .then(setFilters)
       .catch(() => undefined);
   }, []);
 
   function load() {
     api
-      .get<AuditRow[]>('/api/admin/audit', { search: search || undefined, action: action || undefined, pageSize: 100 })
+      .get<AuditRow[]>('/api/admin/audit', {
+        search: search || undefined,
+        action: action || undefined,
+        entityType: entityType || undefined,
+        actorId: actorId || undefined,
+        from: from || undefined,
+        to: to || undefined,
+        pageSize: 100,
+      })
       .then(setRows)
       .catch(setError);
   }
 
-  useEffect(load, [search, action]);
+  useEffect(load, [search, action, entityType, actorId, from, to]);
 
   if (error) return <ErrorState error={error} onRetry={load} />;
 
@@ -48,15 +66,39 @@ export function AuditLog() {
       <PageHeader title="Audit log" subtitle="Append-only — cannot be edited or deleted" />
 
       <div className="row-wrap">
-        <input className="input" placeholder="Search actor, reason or action" value={search} onChange={(e) => setSearch(e.target.value)} style={{ maxWidth: 320 }} />
+        <input className="input" placeholder="Search actor, reason or action" value={search} onChange={(e) => setSearch(e.target.value)} style={{ maxWidth: 280 }} />
         <select className="select" value={action} onChange={(e) => setAction(e.target.value)}>
           <option value="">All actions</option>
-          {actions.map((a) => (
+          {filters.knownActions.map((a) => (
             <option key={a} value={a}>
               {a}
             </option>
           ))}
         </select>
+        <select className="select" value={entityType} onChange={(e) => setEntityType(e.target.value)}>
+          <option value="">All entity types</option>
+          {filters.entityTypes.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+        <select className="select" value={actorId} onChange={(e) => setActorId(e.target.value)}>
+          <option value="">All actors</option>
+          {filters.actors.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name}
+            </option>
+          ))}
+        </select>
+        <label className="row text-sm" style={{ gap: 'var(--space-1)' }}>
+          From
+          <input type="date" className="input" value={from} onChange={(e) => setFrom(e.target.value)} />
+        </label>
+        <label className="row text-sm" style={{ gap: 'var(--space-1)' }}>
+          To
+          <input type="date" className="input" value={to} onChange={(e) => setTo(e.target.value)} />
+        </label>
       </div>
 
       {!rows ? (
@@ -90,6 +132,13 @@ export function AuditLog() {
                     <td className="text-sm">{r.reason ?? '—'}</td>
                   </tr>
                 ))}
+                {rows.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="text-sm muted" style={{ textAlign: 'center', padding: 'var(--space-4)' }}>
+                      No entries match these filters.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

@@ -339,6 +339,29 @@ export function sessionRoutes(): Router {
         marksByPerformance.set(m.performance_id, list);
       }
 
+      // JDG-08-07: attach each missing judge's self-reported offline-queue
+      // depth from their most recently active device session, so "Waiting"
+      // can be told apart from "already scored, not yet synced."
+      const missingJudgeIds = new Set<string>();
+      for (const p of performances) {
+        for (const j of parseMissingJudges(p.missing_judges)) missingJudgeIds.add(j.judgeId);
+      }
+      const queueByJudge = new Map<string, number>();
+      if (missingJudgeIds.size > 0) {
+        const sessions = await db
+          .selectFrom('user_sessions')
+          .select(['user_id', 'queued_marks'])
+          .where('user_id', 'in', [...missingJudgeIds])
+          .where('revoked_at', 'is', null)
+          .where('queued_marks', '>', 0)
+          .orderBy('last_seen_at', 'desc')
+          .execute();
+        // Keep the highest-recency row per judge (first one seen, given the order above).
+        for (const s of sessions) {
+          if (!queueByJudge.has(s.user_id)) queueByJudge.set(s.user_id, s.queued_marks);
+        }
+      }
+
       const mapped = performances.map((p) => ({
         performanceId: p.performance_id,
         itemId: p.item_id,
@@ -349,7 +372,11 @@ export function sessionRoutes(): Router {
         submittedCount: Number(p.submitted_count),
         outstandingCount: Number(p.outstanding_count),
         // ADM-09-08: name the judges who have not submitted.
-        missingJudges: parseMissingJudges(p.missing_judges),
+        // JDG-08-07: and whether they're actually behind, or just unsynced.
+        missingJudges: parseMissingJudges(p.missing_judges).map((j) => ({
+          ...j,
+          queuedMarks: queueByJudge.get(j.judgeId) ?? 0,
+        })),
         submittedJudgeIds: p.submitted_judge_ids ?? [],
         isCurrent: p.is_current,
         callOrder: p.call_order,

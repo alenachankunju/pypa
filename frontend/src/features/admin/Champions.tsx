@@ -31,10 +31,17 @@ interface ChampionsResponse {
 
 export function Champions() {
   const [data, setData] = useState<ChampionsResponse | null>(null);
+  const [unpublishedItemCount, setUnpublishedItemCount] = useState<number | null>(null);
   const [error, setError] = useState<unknown>(null);
 
   useEffect(() => {
-    api.get<ChampionsResponse>('/api/admin/results/champions').then(setData).catch(setError);
+    api
+      .getWithMeta<ChampionsResponse>('/api/admin/results/champions')
+      .then((r) => {
+        setData(r.data);
+        setUnpublishedItemCount(typeof r.meta?.unpublishedItemCount === 'number' ? r.meta.unpublishedItemCount : null);
+      })
+      .catch(setError);
   }, []);
 
   if (error) return <ErrorState error={error} />;
@@ -42,7 +49,14 @@ export function Champions() {
 
   return (
     <div className="stack-lg">
-      <PageHeader title="Champions" />
+      <PageHeader
+        title="Champions"
+        subtitle={
+          unpublishedItemCount !== null && unpublishedItemCount > 0
+            ? `${unpublishedItemCount} item(s) still unpublished — don't announce yet`
+            : undefined
+        }
+      />
 
       <div className="card">
         <div className="card-header">

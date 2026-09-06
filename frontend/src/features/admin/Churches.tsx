@@ -3,7 +3,7 @@
  */
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import { ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
+import { ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 
 interface Church {
@@ -13,6 +13,8 @@ interface Church {
   zone: string | null;
   contactPerson: string | null;
   contactMobile: string | null;
+  contactEmail: string | null;
+  logoPath: string | null;
   isActive: boolean;
   memberCount: number;
   registrationCount: number;
@@ -23,39 +25,43 @@ export function Churches() {
   const { can } = useAuth();
   const [rows, setRows] = useState<Church[] | null>(null);
   const [search, setSearch] = useState('');
+  const [activeFilter, setActiveFilter] = useState('true');
   const [error, setError] = useState<unknown>(null);
   const [editing, setEditing] = useState<Partial<Church> | null>(null);
+  const [deactivating, setDeactivating] = useState<Church | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   function load() {
     api
-      .get<Church[]>('/api/admin/churches', { search: search || undefined, pageSize: 200 })
+      .get<Church[]>('/api/admin/churches', {
+        search: search || undefined,
+        isActive: activeFilter || undefined,
+        pageSize: 200,
+      })
       .then(setRows)
       .catch(setError);
   }
 
-  useEffect(load, [search]);
+  useEffect(load, [search, activeFilter]);
 
   async function save() {
     if (!editing) return;
     setSaving(true);
     try {
+      const payload = {
+        name: editing.name,
+        shortCode: editing.shortCode,
+        zone: editing.zone,
+        contactPerson: editing.contactPerson,
+        contactMobile: editing.contactMobile,
+        contactEmail: editing.contactEmail,
+        logoPath: editing.logoPath,
+      };
       if (editing.id) {
-        await api.patch(`/api/admin/churches/${editing.id}`, {
-          name: editing.name,
-          shortCode: editing.shortCode,
-          zone: editing.zone,
-          contactPerson: editing.contactPerson,
-          contactMobile: editing.contactMobile,
-        });
+        await api.patch(`/api/admin/churches/${editing.id}`, payload);
       } else {
-        await api.post('/api/admin/churches', {
-          name: editing.name,
-          shortCode: editing.shortCode,
-          zone: editing.zone,
-          contactPerson: editing.contactPerson,
-          contactMobile: editing.contactMobile,
-        });
+        await api.post('/api/admin/churches', payload);
       }
       setEditing(null);
       load();
@@ -64,6 +70,29 @@ export function Churches() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function confirmDeactivate() {
+    if (!deactivating) return;
+    setSaving(true);
+    try {
+      const result = await api.patch<{ notice?: string }>(`/api/admin/churches/${deactivating.id}`, {
+        isActive: false,
+      });
+      setDeactivating(null);
+      setNotice(result.notice ?? `${deactivating.name} deactivated — hidden from new-member dropdowns.`);
+      load();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function reactivate(church: Church) {
+    await api.patch(`/api/admin/churches/${church.id}`, { isActive: true });
+    setNotice(`${church.name} reactivated.`);
+    load();
   }
 
   if (error) return <ErrorState error={error} onRetry={load} />;
@@ -82,13 +111,29 @@ export function Churches() {
         }
       />
 
-      <input
-        className="input"
-        placeholder="Search by name or code"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        style={{ maxWidth: 320 }}
-      />
+      {notice && (
+        <div className="banner banner-success">
+          <span className="grow">{notice}</span>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => setNotice(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      <div className="row row-wrap">
+        <input
+          className="input"
+          placeholder="Search by name or code"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ maxWidth: 320 }}
+        />
+        <select className="input" value={activeFilter} onChange={(e) => setActiveFilter(e.target.value)} style={{ maxWidth: 160 }}>
+          <option value="true">Active only</option>
+          <option value="false">Inactive only</option>
+          <option value="">All statuses</option>
+        </select>
+      </div>
 
       {!rows ? (
         <LoadingState />
@@ -108,7 +153,7 @@ export function Churches() {
               </thead>
               <tbody>
                 {rows.map((c) => (
-                  <tr key={c.id}>
+                  <tr key={c.id} style={!c.isActive ? { opacity: 0.5 } : undefined}>
                     <td>{c.name}</td>
                     <td>{c.shortCode}</td>
                     <td>{c.zone ?? '—'}</td>
@@ -122,11 +167,22 @@ export function Churches() {
                         </span>
                       )}
                     </td>
-                    <td>
+                    <td className="row row-wrap">
                       {can('MANAGE_CHURCHES') && (
-                        <button type="button" className="btn btn-sm btn-secondary" onClick={() => setEditing(c)}>
-                          Edit
-                        </button>
+                        <>
+                          <button type="button" className="btn btn-sm btn-secondary" onClick={() => setEditing(c)}>
+                            Edit
+                          </button>
+                          {c.isActive ? (
+                            <button type="button" className="btn btn-sm btn-danger" onClick={() => setDeactivating(c)}>
+                              Deactivate
+                            </button>
+                          ) : (
+                            <button type="button" className="btn btn-sm btn-secondary" onClick={() => void reactivate(c)}>
+                              Reactivate
+                            </button>
+                          )}
+                        </>
                       )}
                     </td>
                   </tr>
@@ -176,6 +232,21 @@ export function Churches() {
                 onChange={(e) => setEditing({ ...editing, contactMobile: e.target.value })}
               />
             </Field>
+            <Field label="Contact email">
+              <input
+                className="input"
+                type="email"
+                value={editing.contactEmail ?? ''}
+                onChange={(e) => setEditing({ ...editing, contactEmail: e.target.value })}
+              />
+            </Field>
+            <Field label="Logo URL" hint="A hosted image URL, printed on badges and result sheets">
+              <input
+                className="input"
+                value={editing.logoPath ?? ''}
+                onChange={(e) => setEditing({ ...editing, logoPath: e.target.value })}
+              />
+            </Field>
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button type="button" className="btn btn-ghost" onClick={() => setEditing(null)}>
                 Cancel
@@ -187,6 +258,21 @@ export function Churches() {
           </div>
         )}
       </Sheet>
+
+      <ConfirmDialog
+        open={deactivating !== null}
+        title="Deactivate church"
+        consequence={
+          <>
+            <strong>{deactivating?.name}</strong> will be hidden from new-member dropdowns. Existing members,
+            registrations and results are unaffected (ADM-02-01, FSD 12.2).
+          </>
+        }
+        confirmLabel="Deactivate"
+        busy={saving}
+        onConfirm={() => void confirmDeactivate()}
+        onCancel={() => setDeactivating(null)}
+      />
     </div>
   );
 }

@@ -75,6 +75,9 @@ export function resultRoutes(): Router {
         .orderBy('r.item_name')
         .execute();
 
+      // ADM-12-09: every result screen shows the count of items still unpublished.
+      const summary = await publicationSummary(req.eventId!);
+
       return ok(
         res,
         rows.map((r) => ({
@@ -93,6 +96,7 @@ export function resultRoutes(): Router {
           pendingCount: Number(r.pending_count),
           isReady: r.is_ready,
         })),
+        { unpublishedItemCount: summary.unpublished },
       );
     }),
   );
@@ -124,7 +128,10 @@ export function resultRoutes(): Router {
         ? groupUnresolvedTies(result.rows)
         : [];
 
-      return ok(res, { ...result, tiedGroups });
+      // ADM-12-09: every result screen shows the count of items still unpublished.
+      const summary = await publicationSummary(req.eventId!);
+
+      return ok(res, { ...result, tiedGroups }, { unpublishedItemCount: summary.unpublished });
     }),
   );
 

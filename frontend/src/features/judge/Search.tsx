@@ -3,14 +3,19 @@
  *
  * JDG-03-01: numeric-first input, device numeric keypad.
  * JDG-03-02: results filter as the judge types, after a minimum of two characters.
+ * JDG-03-04: optional barcode/QR scan of the badge, resolving directly to the
+ * member — feature-detected via the native BarcodeDetector API (Chrome/Edge/
+ * Android) rather than a bundled scanning library, since it's an optional
+ * convenience, not the primary lookup path.
  * JDG-03-06: "Silent empty results are not acceptable" — the API throws a
  * NOT_FOUND naming the chest number, rendered here as the explicit message.
  */
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ApiError, api } from '../../lib/api';
-import { Avatar, ErrorState, LoadingState } from '../../components/ui';
+import { Avatar, ErrorState, LoadingState, Sheet } from '../../components/ui';
 import { useJudgeSession } from './JudgeSession';
+import { BadgeScanner, scannerSupported } from './BadgeScanner';
 
 interface SearchResult {
   memberId: string;
@@ -30,6 +35,7 @@ export function Search() {
   const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const [scanning, setScanning] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -83,20 +89,39 @@ export function Search() {
         <label className="label" htmlFor="chest-search">
           Chest number or name
         </label>
-        <input
-          ref={inputRef}
-          id="chest-search"
-          className="input"
-          style={{ fontSize: 'var(--text-xl)', textAlign: 'center' }}
-          // JDG-03-01: numeric-first — inputMode opens the numeric keypad while
-          // still accepting the partial-name fallback in JDG-03-03.
-          inputMode="numeric"
-          autoComplete="off"
-          placeholder="e.g. 214"
-          value={term}
-          onChange={(e) => setTerm(e.target.value)}
-        />
+        <div className="row">
+          <input
+            ref={inputRef}
+            id="chest-search"
+            className="input grow"
+            style={{ fontSize: 'var(--text-xl)', textAlign: 'center' }}
+            // JDG-03-01: numeric-first — inputMode opens the numeric keypad while
+            // still accepting the partial-name fallback in JDG-03-03.
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="e.g. 214"
+            value={term}
+            onChange={(e) => setTerm(e.target.value)}
+          />
+          {scannerSupported() && (
+            <button type="button" className="btn btn-secondary" onClick={() => setScanning(true)}>
+              Scan badge
+            </button>
+          )}
+        </div>
       </div>
+
+      <Sheet open={scanning} onClose={() => setScanning(false)} title="Scan badge">
+        {scanning && (
+          <BadgeScanner
+            onDetected={(value) => {
+              setScanning(false);
+              setTerm(value);
+            }}
+            onCancel={() => setScanning(false)}
+          />
+        )}
+      </Sheet>
 
       {loading && <LoadingState label="Searching…" />}
 

@@ -12,7 +12,7 @@ import { Categories } from './Categories';
 import { Items } from './Items';
 import { Members } from './Members';
 import { Registrations } from './Registrations';
-import { Judges } from './Judges';
+import { Users } from './Users';
 import { Panels } from './Panels';
 import { Sessions } from './Sessions';
 import { LiveConsole } from './LiveConsole';
@@ -36,7 +36,7 @@ export function AdminApp() {
         <Route path="items" element={<Items />} />
         <Route path="members" element={<Members />} />
         <Route path="registrations" element={<Registrations />} />
-        <Route path="judges" element={<Judges />} />
+        <Route path="judges" element={<Users />} />
         <Route path="panels" element={<Panels />} />
         <Route path="sessions" element={<Sessions />} />
         <Route path="results" element={<ResultsIndex />} />

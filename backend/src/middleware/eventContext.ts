@@ -101,16 +101,23 @@ export function requireActiveEvent(): RequestHandler {
  * and result sheets remain available after the freeze — which is the point of
  * freezing rather than archiving.
  *
- * Super Admin is exempt only for the settings routes that lift the freeze; every
- * other write is blocked for every role, because "accidental edits" are exactly
- * what a privileged account is most able to make.
+ * Super Admin is exempt only for the one route that lifts the freeze — the
+ * exemption is enforced here, by path, because the freeze-toggle route is
+ * itself a mutating POST and would otherwise be blocked by its own guard,
+ * leaving no in-app way to unfreeze an event once frozen. The route still
+ * re-checks MANAGE_SETTINGS capability independently; every other write stays
+ * blocked for every role, because "accidental edits" are exactly what a
+ * privileged account is most able to make.
  */
+const FREEZE_TOGGLE_PATH = /^\/admin\/events\/[^/]+\/freeze$/;
+
 export function blockWhenFrozen(): RequestHandler {
   const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
   return async (req: Request, _res: Response, next: NextFunction) => {
     try {
       if (!MUTATING.has(req.method)) return next();
+      if (FREEZE_TOGGLE_PATH.test(req.path)) return next();
 
       const event = await loadActiveEvent();
       if (!event?.freezeMode) return next();
