@@ -5,7 +5,7 @@
  */
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
-import { Banner, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
+import { AlertDialog, Banner, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 
 interface Judge {
@@ -34,6 +34,7 @@ export function Panels() {
   const [panels, setPanels] = useState<Panel[] | null>(null);
   const [judgeOptions, setJudgeOptions] = useState<JudgeOption[]>([]);
   const [error, setError] = useState<unknown>(null);
+  const [alertError, setAlertError] = useState<unknown>(null);
   const [creating, setCreating] = useState<{ name: string } | null>(null);
   const [assigning, setAssigning] = useState<string | null>(null);
   const [selectedJudge, setSelectedJudge] = useState('');
@@ -54,9 +55,13 @@ export function Panels() {
 
   async function createPanel() {
     if (!creating) return;
-    await api.post('/api/admin/panels', { name: creating.name });
-    setCreating(null);
-    load();
+    try {
+      await api.post('/api/admin/panels', { name: creating.name });
+      setCreating(null);
+      load();
+    } catch (err) {
+      setAlertError(err);
+    }
   }
 
   async function assignJudge(panelId: string, override?: string) {
@@ -74,20 +79,28 @@ export function Panels() {
       if (err instanceof ApiError && err.code === 'CONFLICT') {
         setConflictWarning({ message: err.message, requiresOverride: true });
       } else {
-        setError(err);
+        setAlertError(err);
       }
     }
   }
 
   async function removeJudge(panelId: string, userId: string) {
     const reason = window.prompt('Reason for removing this judge (FSD ADM-08-06):') ?? 'Panel change';
-    await api.del(`/api/admin/panels/${panelId}/judges/${userId}`, { reason });
-    load();
+    try {
+      await api.del(`/api/admin/panels/${panelId}/judges/${userId}`, { reason });
+      load();
+    } catch (err) {
+      setAlertError(err);
+    }
   }
 
   async function toggleActive(panel: Panel) {
-    await api.patch(`/api/admin/panels/${panel.id}`, { isActive: !panel.isActive });
-    load();
+    try {
+      await api.patch(`/api/admin/panels/${panel.id}`, { isActive: !panel.isActive });
+      load();
+    } catch (err) {
+      setAlertError(err);
+    }
   }
 
   async function confirmDeletePanel() {
@@ -103,7 +116,7 @@ export function Panels() {
       if (err instanceof ApiError && err.code === 'IN_USE') {
         setNotice(err.message);
       } else {
-        setError(err);
+        setAlertError(err);
       }
     } finally {
       setDeleteBusy(false);
@@ -233,6 +246,8 @@ export function Panels() {
         onConfirm={() => void confirmDeletePanel()}
         onCancel={() => setDeleting(null)}
       />
+
+      <AlertDialog error={alertError} onClose={() => setAlertError(null)} />
     </div>
   );
 }

@@ -3,7 +3,7 @@
  */
 import { useEffect, useState } from 'react';
 import { ApiError, api } from '../../lib/api';
-import { ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
+import { AlertDialog, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 
 interface Church {
@@ -27,6 +27,7 @@ export function Churches() {
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('true');
   const [error, setError] = useState<unknown>(null);
+  const [alertError, setAlertError] = useState<unknown>(null);
   const [editing, setEditing] = useState<Partial<Church> | null>(null);
   const [deactivating, setDeactivating] = useState<Church | null>(null);
   const [deleting, setDeleting] = useState<Church | null>(null);
@@ -67,7 +68,7 @@ export function Churches() {
       setEditing(null);
       load();
     } catch (err) {
-      setError(err);
+      setAlertError(err);
     } finally {
       setSaving(false);
     }
@@ -84,16 +85,20 @@ export function Churches() {
       setNotice(result.notice ?? `${deactivating.name} deactivated — hidden from new-member dropdowns.`);
       load();
     } catch (err) {
-      setError(err);
+      setAlertError(err);
     } finally {
       setSaving(false);
     }
   }
 
   async function reactivate(church: Church) {
-    await api.patch(`/api/admin/churches/${church.id}`, { isActive: true });
-    setNotice(`${church.name} reactivated.`);
-    load();
+    try {
+      await api.patch(`/api/admin/churches/${church.id}`, { isActive: true });
+      setNotice(`${church.name} reactivated.`);
+      load();
+    } catch (err) {
+      setAlertError(err);
+    }
   }
 
   async function confirmDelete() {
@@ -109,7 +114,7 @@ export function Churches() {
       if (err instanceof ApiError && err.code === 'IN_USE') {
         setNotice(err.message);
       } else {
-        setError(err);
+        setAlertError(err);
       }
     } finally {
       setSaving(false);
@@ -307,6 +312,8 @@ export function Churches() {
         onConfirm={() => void confirmDelete()}
         onCancel={() => setDeleting(null)}
       />
+
+      <AlertDialog error={alertError} onClose={() => setAlertError(null)} />
     </div>
   );
 }

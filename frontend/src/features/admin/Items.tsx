@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError, api } from '../../lib/api';
-import { ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet, StatusBadge } from '../../components/ui';
+import { AlertDialog, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet, StatusBadge } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 
 interface ItemRow {
@@ -51,6 +51,7 @@ export function Items() {
   const [rows, setRows] = useState<ItemRow[] | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [error, setError] = useState<unknown>(null);
+  const [alertError, setAlertError] = useState<unknown>(null);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [saving, setSaving] = useState(false);
   const [categoryChangeConfirm, setCategoryChangeConfirm] = useState<{ message: string; affected: AffectedRegistration[] } | null>(null);
@@ -111,7 +112,7 @@ export function Items() {
           return;
         }
       }
-      setError(err);
+      setAlertError(err);
     } finally {
       setSaving(false);
     }
@@ -126,7 +127,7 @@ export function Items() {
       setCancelReason('');
       load();
     } catch (err) {
-      setError(err);
+      setAlertError(err);
     } finally {
       setCancelBusy(false);
     }
@@ -145,7 +146,7 @@ export function Items() {
       if (err instanceof ApiError && err.code === 'IN_USE') {
         setNotice(err.message);
       } else {
-        setError(err);
+        setAlertError(err);
       }
     } finally {
       setDeleteBusy(false);
@@ -326,9 +327,27 @@ export function Items() {
                   onChange={(e) => setEditing({ ...editing, stage: e.target.value })}
                 />
                 <datalist id="existing-stages">
-                  {[...new Set((rows ?? []).map((r) => r.stage).filter((s): s is string => Boolean(s)))].map((s) => (
-                    <option key={s} value={s} />
-                  ))}
+                  {/*
+                    Only active items' stages, deduped case-insensitively/trimmed
+                    and sorted — "active stages" means the ones actually in use,
+                    not every stray value ever typed on a now-cancelled or
+                    inactive item, and near-duplicates ("Hall B" / "hall b")
+                    shouldn't show up as two separate suggestions.
+                  */}
+                  {[
+                    ...new Map(
+                      (rows ?? [])
+                        .filter((r) => r.isActive && r.status !== 'CANCELLED')
+                        .map((r) => r.stage)
+                        .filter((s): s is string => Boolean(s && s.trim()))
+                        .map((s) => s.trim())
+                        .map((s) => [s.toLowerCase(), s] as const),
+                    ).values(),
+                  ]
+                    .sort((a, b) => a.localeCompare(b))
+                    .map((s) => (
+                      <option key={s} value={s} />
+                    ))}
                 </datalist>
               </Field>
               <Field label="Scheduled at">
@@ -506,6 +525,8 @@ export function Items() {
         onConfirm={() => void confirmDeleteItem()}
         onCancel={() => setDeleting(null)}
       />
+
+      <AlertDialog error={alertError} onClose={() => setAlertError(null)} />
     </div>
   );
 }

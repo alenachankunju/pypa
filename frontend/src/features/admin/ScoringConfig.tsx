@@ -7,7 +7,7 @@
  */
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import { Banner, ErrorState, Field, LoadingState, PageHeader } from '../../components/ui';
+import { AlertDialog, Banner, ErrorState, Field, LoadingState, PageHeader } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 
 interface GradeBand {
@@ -47,6 +47,7 @@ export function ScoringConfig() {
   const { can } = useAuth();
   const [config, setConfig] = useState<ScoringConfigData | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const [alertError, setAlertError] = useState<unknown>(null);
   const [saving, setSaving] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
   const [unlockPreview, setUnlockPreview] = useState<{ itemName: string }[] | null>(null);
@@ -96,7 +97,7 @@ export function ScoringConfig() {
       });
       load();
     } catch (err) {
-      setError(err);
+      setAlertError(err);
     } finally {
       setSaving(false);
     }
@@ -119,29 +120,37 @@ export function ScoringConfig() {
       await api.put(`/api/admin/config/scoring/items/${overrideItemId}/points`, { positionPoints: overridePoints });
       setOverrideNotice('Saved.');
     } catch (err) {
-      setError(err);
+      setAlertError(err);
     } finally {
       setOverrideSaving(false);
     }
   }
 
   async function previewUnlock() {
-    const result = await api.post<{ willUnpublish: { itemName: string }[] }>('/api/admin/config/scoring/unlock', {
-      reason: 'preview',
-      dryRun: true,
-    });
-    setUnlockPreview(result.willUnpublish);
-    setUnlocking(true);
+    try {
+      const result = await api.post<{ willUnpublish: { itemName: string }[] }>('/api/admin/config/scoring/unlock', {
+        reason: 'preview',
+        dryRun: true,
+      });
+      setUnlockPreview(result.willUnpublish);
+      setUnlocking(true);
+    } catch (err) {
+      setAlertError(err);
+    }
   }
 
   async function confirmUnlock() {
-    await api.post('/api/admin/config/scoring/unlock', {
-      reason: unlockReason,
-      confirmUnpublishAll: true,
-    });
-    setUnlocking(false);
-    setUnlockReason('');
-    load();
+    try {
+      await api.post('/api/admin/config/scoring/unlock', {
+        reason: unlockReason,
+        confirmUnpublishAll: true,
+      });
+      setUnlocking(false);
+      setUnlockReason('');
+      load();
+    } catch (err) {
+      setAlertError(err);
+    }
   }
 
   if (error) return <ErrorState error={error} onRetry={load} />;
@@ -446,6 +455,8 @@ export function ScoringConfig() {
           </div>
         </div>
       )}
+
+      <AlertDialog error={alertError} onClose={() => setAlertError(null)} />
     </div>
   );
 }

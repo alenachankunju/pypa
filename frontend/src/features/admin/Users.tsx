@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import {
+  AlertDialog,
   Badge,
   ConfirmDialog,
   ErrorState,
@@ -74,6 +75,7 @@ export function Users() {
   const [rows, setRows] = useState<UserRow[] | null>(null);
   const [churches, setChurches] = useState<ChurchOption[]>([]);
   const [error, setError] = useState<unknown>(null);
+  const [alertError, setAlertError] = useState<unknown>(null);
 
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
@@ -126,33 +128,49 @@ export function Users() {
       setCreating(null);
       load();
     } catch (err) {
-      setError(err);
+      setAlertError(err);
     } finally {
       setSaving(false);
     }
   }
 
   async function forceLogout(id: string) {
-    await api.post(`/api/admin/users/${id}/force-logout`, {});
-    load();
+    try {
+      await api.post(`/api/admin/users/${id}/force-logout`, {});
+      load();
+    } catch (err) {
+      setAlertError(err);
+    }
   }
 
   async function resetPassword(id: string) {
-    const result = await api.post<{ temporaryPassword: string; username: string }>(
-      `/api/admin/users/${id}/reset-password`,
-      {},
-    );
-    setCreated(result);
+    try {
+      const result = await api.post<{ temporaryPassword: string; username: string }>(
+        `/api/admin/users/${id}/reset-password`,
+        {},
+      );
+      setCreated(result);
+    } catch (err) {
+      setAlertError(err);
+    }
   }
 
   async function unlock(id: string) {
-    await api.post(`/api/admin/users/${id}/unlock`, {});
-    load();
+    try {
+      await api.post(`/api/admin/users/${id}/unlock`, {});
+      load();
+    } catch (err) {
+      setAlertError(err);
+    }
   }
 
   async function releaseDevicePin(id: string) {
-    await api.post(`/api/admin/users/${id}/release-device-pin`, {});
-    load();
+    try {
+      await api.post(`/api/admin/users/${id}/release-device-pin`, {});
+      load();
+    } catch (err) {
+      setAlertError(err);
+    }
   }
 
   async function confirmDeactivate() {
@@ -167,16 +185,20 @@ export function Users() {
       else setNotice(`${deactivating.fullName} deactivated.`);
       load();
     } catch (err) {
-      setError(err);
+      setAlertError(err);
     } finally {
       setSaving(false);
     }
   }
 
   async function reactivate(row: UserRow) {
-    await api.patch(`/api/admin/users/${row.id}`, { isActive: true });
-    setNotice(`${row.fullName} reactivated.`);
-    load();
+    try {
+      await api.patch(`/api/admin/users/${row.id}`, { isActive: true });
+      setNotice(`${row.fullName} reactivated.`);
+      load();
+    } catch (err) {
+      setAlertError(err);
+    }
   }
 
   if (error) return <ErrorState error={error} onRetry={load} />;
@@ -442,6 +464,8 @@ export function Users() {
           </div>
         )}
       </Sheet>
+
+      <AlertDialog error={alertError} onClose={() => setAlertError(null)} />
     </div>
   );
 }

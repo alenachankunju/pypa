@@ -16,7 +16,7 @@
 import { useEffect, useState } from 'react';
 import { ApiError, api } from '../../lib/api';
 import { storageUrl } from '../../lib/realtime';
-import { Avatar, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
+import { AlertDialog, Avatar, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 
 interface MemberRow {
@@ -79,6 +79,7 @@ export function Members() {
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('true');
   const [error, setError] = useState<unknown>(null);
+  const [alertError, setAlertError] = useState<unknown>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [churches, setChurches] = useState<Church[]>([]);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
@@ -235,16 +236,20 @@ export function Members() {
       setNotice(`${deactivating.fullName} deactivated. Chest number ${deactivating.chestNumber} stays reserved (FSD 4.2.2).`);
       load();
     } catch (err) {
-      setError(err);
+      setAlertError(err);
     } finally {
       setSaving(false);
     }
   }
 
   async function reactivate(member: MemberRow) {
-    await api.patch(`/api/admin/members/${member.id}`, { isActive: true });
-    setNotice(`${member.fullName} reactivated.`);
-    load();
+    try {
+      await api.patch(`/api/admin/members/${member.id}`, { isActive: true });
+      setNotice(`${member.fullName} reactivated.`);
+      load();
+    } catch (err) {
+      setAlertError(err);
+    }
   }
 
   async function downloadTemplate() {
@@ -257,7 +262,7 @@ export function Members() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err);
+      setAlertError(err);
     }
   }
 
@@ -748,6 +753,8 @@ export function Members() {
         onConfirm={() => void confirmDeactivate()}
         onCancel={() => setDeactivating(null)}
       />
+
+      <AlertDialog error={alertError} onClose={() => setAlertError(null)} />
     </div>
   );
 }

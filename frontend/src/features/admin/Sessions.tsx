@@ -5,7 +5,7 @@
  */
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
-import { Banner, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet, StatusBadge } from '../../components/ui';
+import { AlertDialog, Banner, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet, StatusBadge } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 
 interface SessionRow {
@@ -34,6 +34,7 @@ export function Sessions() {
   const [panels, setPanels] = useState<Panel[]>([]);
   const [items, setItems] = useState<ItemOption[]>([]);
   const [error, setError] = useState<unknown>(null);
+  const [alertError, setAlertError] = useState<unknown>(null);
   const [creating, setCreating] = useState<{ name: string; panelId: string; itemIds: string[] } | null>(null);
   const [closeBlock, setCloseBlock] = useState<{ sessionId: string; incomplete: { itemName: string; participantName: string }[] } | null>(null);
   const [closeReason, setCloseReason] = useState('');
@@ -57,9 +58,13 @@ export function Sessions() {
 
   async function createSession() {
     if (!creating) return;
-    await api.post('/api/admin/sessions', creating);
-    setCreating(null);
-    load();
+    try {
+      await api.post('/api/admin/sessions', creating);
+      setCreating(null);
+      load();
+    } catch (err) {
+      setAlertError(err);
+    }
   }
 
   async function openSession(id: string) {
@@ -67,7 +72,7 @@ export function Sessions() {
       await api.post(`/api/admin/sessions/${id}/open`, {});
       load();
     } catch (err) {
-      setError(err);
+      setAlertError(err);
     }
   }
 
@@ -82,7 +87,7 @@ export function Sessions() {
         const details = err.details as { incompletePerformances?: { itemName: string; participantName: string }[] } | undefined;
         setCloseBlock({ sessionId: id, incomplete: details?.incompletePerformances ?? [] });
       } else {
-        setError(err);
+        setAlertError(err);
       }
     }
   }
@@ -128,7 +133,7 @@ export function Sessions() {
       if (err instanceof ApiError && err.code === 'IN_USE') {
         setNotice(err.message);
       } else {
-        setError(err);
+        setAlertError(err);
       }
     } finally {
       setDeleteBusy(false);
@@ -356,6 +361,8 @@ export function Sessions() {
         onConfirm={() => void confirmDeleteSession()}
         onCancel={() => setDeleting(null)}
       />
+
+      <AlertDialog error={alertError} onClose={() => setAlertError(null)} />
     </div>
   );
 }

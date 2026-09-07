@@ -114,6 +114,52 @@ export function ErrorState({
   );
 }
 
+/**
+ * Error alert dialog — centred on screen, dismissed with a single "OK".
+ *
+ * `ErrorState` is for a screen that has nothing else to show (the initial
+ * list load failed); this is for the opposite case, where a save or action
+ * failed *inside* an already-useful screen (an open form, a populated table).
+ * Routing that into `ErrorState`'s page-level early return would blank out
+ * the very form the admin needs to go fix and retry — this instead sits on
+ * top of it, so closing the alert leaves everything exactly as it was.
+ */
+export function AlertDialog({
+  error,
+  onClose,
+  title = 'Something went wrong',
+}: {
+  error: unknown;
+  onClose: () => void;
+  title?: string;
+}) {
+  const apiError = error instanceof ApiError ? error : null;
+  const message =
+    apiError?.message ??
+    (error instanceof Error ? error.message : 'An unexpected problem occurred.');
+
+  return (
+    <Sheet open={error !== null} onClose={onClose} title={title}>
+      <div className="stack">
+        <div className="banner banner-danger">
+          <span className="banner-icon" aria-hidden="true">
+            ⚠
+          </span>
+          <div className="grow">{message}</div>
+        </div>
+        {apiError && apiError.status >= 500 && apiError.requestId && (
+          <p className="text-xs subtle">Reference: {apiError.requestId}</p>
+        )}
+        <div className="row" style={{ justifyContent: 'flex-end' }}>
+          <button type="button" className="btn btn-primary" onClick={onClose}>
+            OK
+          </button>
+        </div>
+      </div>
+    </Sheet>
+  );
+}
+
 // --- Banners ----------------------------------------------------------------
 
 export function Banner({

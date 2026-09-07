@@ -73,6 +73,14 @@ const MOBILE_PRIMARY: NavItem[] = [
 export function AdminShell() {
   const { user, can, logout } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
+  // React Router doesn't remount/re-run effects when a NavLink targets the
+  // route that's already active — clicking "Members" while already on
+  // Members is a no-op from the router's point of view, so the screen never
+  // refetches. Bumping this on every nav click and keying the Outlet with it
+  // forces a fresh mount (and so a fresh load()) every time, including when
+  // the destination happens to be where you already are.
+  const [navKey, setNavKey] = useState(0);
+  const bumpNavKey = () => setNavKey((k) => k + 1);
 
   const visibleGroups = GROUPS.map((group) => ({
     ...group,
@@ -109,7 +117,7 @@ export function AdminShell() {
           <div className="nav-group" key={group.label}>
             <div className="nav-group-label">{group.label}</div>
             {group.items.map((item) => (
-              <NavLink key={item.to} to={item.to} end={item.end} className="nav-link">
+              <NavLink key={item.to} to={item.to} end={item.end} className="nav-link" onClick={bumpNavKey}>
                 <span aria-hidden="true">{item.icon}</span>
                 {item.label}
               </NavLink>
@@ -133,13 +141,13 @@ export function AdminShell() {
           </div>
         </header>
         <div className="container" style={{ paddingTop: 'var(--space-5)' }}>
-          <Outlet />
+          <Outlet key={navKey} />
         </div>
       </div>
 
       <nav className="bottom-nav admin-nav no-print" aria-label="Admin navigation">
         {MOBILE_PRIMARY.filter((item) => !item.capability || can(item.capability)).map((item) => (
-          <NavLink key={item.to} to={item.to} end={item.end} className="bottom-nav-item">
+          <NavLink key={item.to} to={item.to} end={item.end} className="bottom-nav-item" onClick={bumpNavKey}>
             <span className="bottom-nav-icon" aria-hidden="true">
               {item.icon}
             </span>
@@ -165,7 +173,10 @@ export function AdminShell() {
                   to={item.to}
                   end={item.end}
                   className="nav-link"
-                  onClick={() => setMoreOpen(false)}
+                  onClick={() => {
+                    setMoreOpen(false);
+                    bumpNavKey();
+                  }}
                 >
                   <span aria-hidden="true">{item.icon}</span>
                   {item.label}

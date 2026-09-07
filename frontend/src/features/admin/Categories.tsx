@@ -4,7 +4,7 @@
  */
 import { useEffect, useState } from 'react';
 import { ApiError, api } from '../../lib/api';
-import { ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
+import { AlertDialog, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 
 interface Category {
@@ -24,6 +24,7 @@ export function Categories() {
   const [rows, setRows] = useState<Category[] | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [error, setError] = useState<unknown>(null);
+  const [alertError, setAlertError] = useState<unknown>(null);
   const [editing, setEditing] = useState<Partial<Category> | null>(null);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -58,7 +59,7 @@ export function Categories() {
       setEditing(null);
       load();
     } catch (err) {
-      setError(err);
+      setAlertError(err);
     } finally {
       setSaving(false);
     }
@@ -77,7 +78,7 @@ export function Categories() {
       if (err instanceof ApiError && err.code === 'IN_USE') {
         setInUseNotice(err.message);
       } else {
-        setError(err);
+        setAlertError(err);
       }
     } finally {
       setSaving(false);
@@ -85,8 +86,12 @@ export function Categories() {
   }
 
   async function toggleActive(c: Category) {
-    await api.patch(`/api/admin/categories/${c.id}`, { isActive: !c.isActive });
-    load();
+    try {
+      await api.patch(`/api/admin/categories/${c.id}`, { isActive: !c.isActive });
+      load();
+    } catch (err) {
+      setAlertError(err);
+    }
   }
 
   if (error) return <ErrorState error={error} onRetry={load} />;
@@ -236,6 +241,8 @@ export function Categories() {
         onConfirm={() => void confirmDelete()}
         onCancel={() => setDeleting(null)}
       />
+
+      <AlertDialog error={alertError} onClose={() => setAlertError(null)} />
     </div>
   );
 }

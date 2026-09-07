@@ -5,7 +5,7 @@
  */
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import { Banner, ErrorState, Field, LoadingState, PageHeader } from '../../components/ui';
+import { AlertDialog, Banner, ErrorState, Field, LoadingState, PageHeader } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 
 interface EventData {
@@ -41,6 +41,7 @@ export function Settings() {
   const { can } = useAuth();
   const [event, setEvent] = useState<EventData | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const [alertError, setAlertError] = useState<unknown>(null);
   const [saving, setSaving] = useState(false);
   const [freezeReason, setFreezeReason] = useState('');
 
@@ -86,7 +87,7 @@ export function Settings() {
       load();
       loadRetention();
     } catch (err) {
-      setError(err);
+      setAlertError(err);
     } finally {
       setSaving(false);
     }
@@ -94,11 +95,15 @@ export function Settings() {
 
   async function toggleFreeze() {
     if (!event) return;
-    await api.post(`/api/admin/events/${event.id}/freeze`, {
-      frozen: !event.freezeMode,
-      reason: !event.freezeMode ? freezeReason : undefined,
-    });
-    load();
+    try {
+      await api.post(`/api/admin/events/${event.id}/freeze`, {
+        frozen: !event.freezeMode,
+        reason: !event.freezeMode ? freezeReason : undefined,
+      });
+      load();
+    } catch (err) {
+      setAlertError(err);
+    }
   }
 
   async function takeSnapshot() {
@@ -108,21 +113,25 @@ export function Settings() {
       setSnapshotLabel('');
       loadSnapshots();
     } catch (err) {
-      setError(err);
+      setAlertError(err);
     } finally {
       setSnapshotBusy(false);
     }
   }
 
   async function exportData() {
-    const payload = await api.post('/api/admin/snapshots/export', {});
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `pypa-export-${event?.id ?? 'event'}-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const payload = await api.post('/api/admin/snapshots/export', {});
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pypa-export-${event?.id ?? 'event'}-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setAlertError(err);
+    }
   }
 
   async function confirmRestore() {
@@ -134,7 +143,7 @@ export function Settings() {
       load();
       loadSnapshots();
     } catch (err) {
-      setError(err);
+      setAlertError(err);
     } finally {
       setSnapshotBusy(false);
     }
@@ -324,6 +333,8 @@ export function Settings() {
           </div>
         </div>
       )}
+
+      <AlertDialog error={alertError} onClose={() => setAlertError(null)} />
     </div>
   );
 }
