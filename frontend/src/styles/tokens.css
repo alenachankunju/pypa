@@ -139,11 +139,11 @@
      --------------------------------------------------------------------- */
 
   --font-sans:
-    'Manrope', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Work Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
     'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
   /* Headings, chest numbers, marks — a serif reads as ceremonial rather than
      commercial, matching the certificate and result-sheet typography. */
-  --font-display: 'Lora', Georgia, Cambria, 'Times New Roman', serif;
+  --font-display: 'Source Serif 4', Georgia, Cambria, 'Times New Roman', serif;
   --font-mono:
     ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
 
