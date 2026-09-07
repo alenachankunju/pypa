@@ -21,6 +21,7 @@ interface ProgressPerformance {
   performanceId: string;
   itemId: string;
   itemName: string;
+  categoryName: string | null;
   status: string;
   panelSize: number;
   submittedCount: number;
@@ -53,6 +54,30 @@ interface ProgressResponse {
 }
 
 const POLL_MS = 3000;
+
+interface ItemGroup {
+  itemId: string;
+  itemName: string;
+  categoryName: string | null;
+  rows: ProgressPerformance[];
+}
+
+/**
+ * One table per item rather than one long flat list (ADM-09-01 asks "is
+ * anything stuck?" — easier to answer item by item). The server already
+ * orders `performances` lower category to higher, then item name, then call
+ * order (sessions.routes.ts /:id/progress), so grouping by first appearance
+ * here preserves that order without re-sorting on the client.
+ */
+function groupByItem(rows: ProgressPerformance[]): ItemGroup[] {
+  const groups = new Map<string, ItemGroup>();
+  for (const p of rows) {
+    const group = groups.get(p.itemId) ?? { itemId: p.itemId, itemName: p.itemName, categoryName: p.categoryName, rows: [] };
+    group.rows.push(p);
+    groups.set(p.itemId, group);
+  }
+  return [...groups.values()];
+}
 
 export function LiveConsole() {
   const { can } = useAuth();
@@ -316,58 +341,68 @@ export function LiveConsole() {
             </div>
           </div>
 
-          {/* Full participant list with set-current control. */}
-          <div className="card-flush">
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Item</th>
-                    <th>Participant</th>
-                    <th>Church</th>
-                    <th>Status</th>
-                    <th>Progress</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {progress.performances.map((p) => (
-                    <tr key={p.performanceId} style={p.isCurrent ? { background: 'var(--surface-selected)' } : undefined}>
-                      <td className="num">{p.callOrder ?? '—'}</td>
-                      <td>{p.itemName}</td>
-                      <td>
-                        {p.chestNumber} · {p.participantName}
-                      </td>
-                      <td>{p.churchName}</td>
-                      <td>
-                        <StatusBadge status={p.status} />
-                      </td>
-                      <td className="num">
-                        {p.submittedCount}/{p.panelSize}
-                      </td>
-                      <td>
-                        {can('CONTROL_STAGE') && !p.isCurrent && p.status !== 'COMPLETE' && (
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-secondary"
-                            disabled={busy !== null}
-                            onClick={() =>
-                              action('set-current', () =>
-                                api.post(`/api/admin/performances/${p.performanceId}/set-current`, {}),
-                              )
-                            }
-                          >
-                            Set on stage
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {/*
+            One table per item, in the order the server sends them: lower
+            category to higher (by age band), then item name, then call order
+            (sessions.routes.ts /:id/progress) — see groupByItem() above.
+          */}
+          {groupByItem(progress.performances).map((group) => (
+            <div key={group.itemId} className="stack-sm">
+              <div className="row-between">
+                <span className="strong">{group.itemName}</span>
+                {group.categoryName && <span className="badge badge-neutral">{group.categoryName}</span>}
+              </div>
+              <div className="card-flush">
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Participant</th>
+                        <th>Church</th>
+                        <th>Status</th>
+                        <th>Progress</th>
+                        <th />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.rows.map((p) => (
+                        <tr key={p.performanceId} style={p.isCurrent ? { background: 'var(--surface-selected)' } : undefined}>
+                          <td className="num">{p.callOrder ?? '—'}</td>
+                          <td>
+                            {p.chestNumber} · {p.participantName}
+                          </td>
+                          <td>{p.churchName}</td>
+                          <td>
+                            <StatusBadge status={p.status} />
+                          </td>
+                          <td className="num">
+                            {p.submittedCount}/{p.panelSize}
+                          </td>
+                          <td>
+                            {can('CONTROL_STAGE') && !p.isCurrent && p.status !== 'COMPLETE' && (
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-secondary"
+                                disabled={busy !== null}
+                                onClick={() =>
+                                  action('set-current', () =>
+                                    api.post(`/api/admin/performances/${p.performanceId}/set-current`, {}),
+                                  )
+                                }
+                              >
+                                Set on stage
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
-          </div>
+          ))}
         </>
       )}
     </div>

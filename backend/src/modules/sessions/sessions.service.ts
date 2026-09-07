@@ -27,7 +27,7 @@ interface PanelJudgeRow {
 }
 
 /** ADM-08-02: the completion target is the actual assigned count, active judges only. */
-async function loadActiveJudges(
+export async function loadActiveJudges(
   trx: Executor,
   panelId: string,
 ): Promise<{ active: PanelJudgeRow[]; total: number }> {
@@ -51,7 +51,7 @@ async function loadActiveJudges(
  * same operation, different trigger, so a mid-session item addition gets
  * exactly the same panel-snapshot guarantee (FSD 7.2) as opening day one.
  */
-async function materializePerformances(
+export async function materializePerformances(
   trx: Executor,
   params: { eventId: string; sessionId: string; itemIds: string[]; activeJudges: PanelJudgeRow[]; userId: string },
 ): Promise<{ created: number; existing: number }> {
@@ -112,6 +112,42 @@ async function materializePerformances(
   }
 
   return { created, existing: registrations.length - created };
+}
+
+/**
+ * Called right after a new registration is created (registrations.service.ts),
+ * for exactly the item just registered — covers the one gap the other two
+ * callers don't: openSession() and addItemsToSession() both materialise every
+ * REGISTERED registration that exists at the moment an item is linked, but a
+ * registration created afterwards, for an item already linked to an
+ * already-OPEN session, would otherwise sit in `registrations` with no
+ * `performances` row at all — invisible on the live console, and unable to be
+ * called to stage, until someone thinks to re-add the item (which
+ * addItemsToSession refuses once it's already linked). This closes that gap
+ * for every new registration, without waiting for anyone to notice.
+ */
+export async function materializeForNewRegistration(
+  trx: Executor,
+  params: { eventId: string; itemId: string; userId: string },
+): Promise<void> {
+  const links = await trx
+    .selectFrom('session_items as si')
+    .innerJoin('sessions as s', 's.id', 'si.session_id')
+    .select(['s.id as session_id', 's.panel_id'])
+    .where('si.item_id', '=', params.itemId)
+    .where('s.status', '=', 'OPEN')
+    .execute();
+
+  for (const link of links) {
+    const { active: activeJudges } = await loadActiveJudges(trx, link.panel_id);
+    await materializePerformances(trx, {
+      eventId: params.eventId,
+      sessionId: link.session_id,
+      itemIds: [params.itemId],
+      activeJudges,
+      userId: params.userId,
+    });
+  }
 }
 
 /**
@@ -452,6 +488,7 @@ export async function listIncompletePerformances(
     .innerJoin('items as i', 'i.id', 'pp.item_id')
     .innerJoin('registrations as r', 'r.id', 'pp.registration_id')
     .leftJoin('members as m', 'm.id', 'r.member_id')
+    .leftJoin('categories as cat', 'cat.id', 'i.category_id')
     .select([
       'pp.performance_id',
       'pp.status',
@@ -463,6 +500,9 @@ export async function listIncompletePerformances(
     ])
     .where('pp.session_id', '=', sessionId)
     .where('pp.status', 'in', ['SCHEDULED', 'ON_STAGE', 'IN_PROGRESS'])
+    // Same ordering as the live console: lower category to higher, then item,
+    // then chest number.
+    .orderBy('cat.min_age')
     .orderBy('i.name')
     .orderBy('m.chest_number_numeric')
     .execute();

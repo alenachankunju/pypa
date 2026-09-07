@@ -349,6 +349,7 @@ export function sessionRoutes(): Router {
         .innerJoin('registrations as r', 'r.id', 'pp.registration_id')
         .innerJoin('churches as c', 'c.id', 'r.church_id')
         .leftJoin('members as m', 'm.id', 'r.member_id')
+        .leftJoin('categories as cat', 'cat.id', 'i.category_id')
         .select([
           'pp.performance_id',
           'pp.item_id',
@@ -370,8 +371,15 @@ export function sessionRoutes(): Router {
           'r.team_name',
           'c.name as church_name',
           'c.short_code as church_short_code',
+          'cat.name as category_name',
+          'cat.min_age as category_min_age',
         ])
         .where('pp.session_id', '=', id)
+        // Lower category to higher first (by age band), items open to all
+        // categories or with none set (NULL min_age) sort after every real
+        // band — Postgres puts NULLs last in ASC order by default. Item name
+        // breaks a tie within the same category, call order within an item.
+        .orderBy('cat.min_age')
         .orderBy('i.name')
         .orderBy('pp.call_order')
         .execute();
@@ -427,6 +435,7 @@ export function sessionRoutes(): Router {
         itemId: p.item_id,
         itemName: p.item_name,
         itemCode: p.item_code,
+        categoryName: p.category_name,
         status: p.status,
         panelSize: p.panel_size,
         submittedCount: Number(p.submitted_count),

@@ -13,6 +13,7 @@ import {
   assertTeamValid,
   checkItemEligibility,
 } from '../../services/eligibility.js';
+import { materializeForNewRegistration } from '../sessions/sessions.service.js';
 import { errors } from '../../utils/errors.js';
 
 export interface CreateRegistrationInput {
@@ -145,6 +146,11 @@ export async function createRegistration(
       .returningAll()
       .executeTakeFirstOrThrow();
 
+    // FSD 4.1/7.2: if this item is already on stage in an OPEN session, this
+    // registration needs its own performance now, not whenever someone next
+    // touches the session (see materializeForNewRegistration's own comment).
+    await materializeForNewRegistration(trx, { eventId: input.eventId, itemId: input.itemId, userId });
+
     await writeAudit(
       {
         eventId: input.eventId,
@@ -256,6 +262,8 @@ export async function createTeamRegistration(
         })),
       )
       .execute();
+
+    await materializeForNewRegistration(trx, { eventId: input.eventId, itemId: input.itemId, userId });
 
     await writeAudit(
       {
