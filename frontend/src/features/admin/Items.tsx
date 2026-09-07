@@ -186,6 +186,7 @@ export function Items() {
   return (
     <div className="stack-lg">
       <PageHeader
+        icon="♪"
         title="Items"
         actions={
           can('MANAGE_ITEMS') && (
@@ -279,6 +280,7 @@ export function Items() {
       <Sheet open={editing !== null} onClose={() => setEditing(null)} title={editing?.id ? 'Edit item' : 'Add item'}>
         {editing && (
           <div className="stack">
+            <p className="form-section-label">Basic details</p>
             <Field label="Name" required>
               <input className="input" value={(editing.name as string) ?? ''} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
             </Field>
@@ -318,6 +320,8 @@ export function Items() {
                 </select>
               </Field>
             </div>
+
+            <p className="form-section-label">Scheduling</p>
             <div className="row">
               <Field label="Stage" hint="Pick an existing stage, or type a new one">
                 <input
@@ -359,6 +363,7 @@ export function Items() {
                 />
               </Field>
             </div>
+            <p className="form-section-label">Scoring &amp; limits</p>
             <div className="row">
               <Field label="Max mark override">
                 <input type="number" className="input" value={(editing.maxMark as number) ?? ''} onChange={(e) => setEditing({ ...editing, maxMark: e.target.value })} />
@@ -383,6 +388,8 @@ export function Items() {
                 </Field>
               </div>
             )}
+
+            <p className="form-section-label">Visibility</p>
             <Field label="Active">
               <label className="row" style={{ gap: 'var(--space-2)' }}>
                 <input

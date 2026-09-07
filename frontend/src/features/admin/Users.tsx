@@ -208,6 +208,7 @@ export function Users() {
   return (
     <div className="stack-lg">
       <PageHeader
+        icon="⚖"
         title="Users"
         subtitle="Every account in the system — judges, coordinators and administrators"
         actions={

@@ -129,6 +129,7 @@ export function Panels() {
   return (
     <div className="stack-lg">
       <PageHeader
+        icon="⚑"
         title="Panels"
         actions={
           can('MANAGE_PANELS') && (

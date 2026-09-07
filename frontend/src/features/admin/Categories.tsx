@@ -99,6 +99,7 @@ export function Categories() {
   return (
     <div className="stack-lg">
       <PageHeader
+        icon="▤"
         title="Categories"
         subtitle="Age and eligibility bands for this event"
         actions={

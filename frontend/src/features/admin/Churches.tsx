@@ -126,6 +126,7 @@ export function Churches() {
   return (
     <div className="stack-lg">
       <PageHeader
+        icon="⛪"
         title="Churches"
         subtitle="Global master data, reused across events"
         actions={

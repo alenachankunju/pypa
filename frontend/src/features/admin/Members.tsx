@@ -308,6 +308,7 @@ export function Members() {
   return (
     <div className="stack-lg">
       <PageHeader
+        icon="☺"
         title="Members"
         actions={
           can('MANAGE_MEMBERS') && (

@@ -468,24 +468,38 @@ export function Avatar({
   );
 }
 
+/**
+ * The icon, when given, reuses the same glyph as this section's sidebar nav
+ * item (AdminShell's GROUPS) — the page header and the nav row a viewer just
+ * clicked read as the same place, rather than two unrelated designs.
+ */
 export function PageHeader({
+  icon,
   title,
   subtitle,
   actions,
 }: {
+  icon?: string;
   title: string;
   subtitle?: ReactNode;
   actions?: ReactNode;
 }) {
   return (
     <div className="row-between row-wrap" style={{ marginBottom: 'var(--space-5)' }}>
-      <div className="grow">
-        <h1 className="page-title">{title}</h1>
-        {subtitle && (
-          <p className="text-sm muted" style={{ marginTop: 'var(--space-1)' }}>
-            {subtitle}
-          </p>
+      <div className="row">
+        {icon && (
+          <span className="page-header-icon" aria-hidden="true">
+            {icon}
+          </span>
         )}
+        <div className="grow">
+          <h1 className="page-title">{title}</h1>
+          {subtitle && (
+            <p className="text-sm muted" style={{ marginTop: 'var(--space-1)' }}>
+              {subtitle}
+            </p>
+          )}
+        </div>
       </div>
       {actions && <div className="row">{actions}</div>}
     </div>

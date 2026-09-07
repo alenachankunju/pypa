@@ -168,6 +168,7 @@ export function Registrations() {
   return (
     <div className="stack-lg">
       <PageHeader
+        icon="⊞"
         title="Registrations"
         subtitle="Entry list per item"
         actions={

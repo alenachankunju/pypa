@@ -154,7 +154,7 @@ export function Settings() {
 
   return (
     <div className="stack-lg">
-      <PageHeader title="Settings" />
+      <PageHeader icon="⚒" title="Settings" />
 
       {event.freezeMode && (
         <Banner tone="danger" title="Event is frozen">

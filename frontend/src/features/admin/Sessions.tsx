@@ -146,6 +146,7 @@ export function Sessions() {
   return (
     <div className="stack-lg">
       <PageHeader
+        icon="⏱"
         title="Sessions"
         actions={
           can('MANAGE_SESSIONS') && (

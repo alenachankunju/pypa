@@ -63,7 +63,7 @@ export function AuditLog() {
 
   return (
     <div className="stack-lg">
-      <PageHeader title="Audit log" subtitle="Append-only — cannot be edited or deleted" />
+      <PageHeader icon="≡" title="Audit log" subtitle="Append-only — cannot be edited or deleted" />
 
       <div className="row-wrap">
         <input className="input" placeholder="Search actor, reason or action" value={search} onChange={(e) => setSearch(e.target.value)} style={{ maxWidth: 280 }} />

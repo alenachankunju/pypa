@@ -158,7 +158,7 @@ export function ScoringConfig() {
 
   return (
     <div className="stack-lg">
-      <PageHeader title="Scoring configuration" />
+      <PageHeader icon="⚙" title="Scoring configuration" />
 
       {config.locked && (
         <Banner tone="warning" title="Configuration is locked">
