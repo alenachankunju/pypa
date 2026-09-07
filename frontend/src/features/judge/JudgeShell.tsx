@@ -27,9 +27,14 @@ export function JudgeShell() {
 
       {/* JDG-01-04: judge name and active session always visible. */}
       <header className="app-header">
-        <div className="header-context">
-          <strong>{user?.fullName}</strong>
-          <span>{bundle?.session.name ?? 'No active session'}</span>
+        <div className="row" style={{ gap: 'var(--space-2)', minWidth: 0 }}>
+          <span className="sidebar-brand-mark" aria-hidden="true" style={{ width: 28, height: 28, fontSize: '0.9rem' }}>
+            P
+          </span>
+          <div className="header-context">
+            <strong>{user?.fullName}</strong>
+            <span>{bundle?.session.name ?? 'No active session'}</span>
+          </div>
         </div>
         {bundle && (
           <span className="badge badge-neutral">{bundle.session.panelName}</span>

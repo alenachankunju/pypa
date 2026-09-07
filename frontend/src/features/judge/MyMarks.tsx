@@ -38,7 +38,7 @@ interface MyScoreRow {
 }
 
 export function MyMarks() {
-  const { sessionId, bundle } = useJudgeSession();
+  const { sessionId } = useJudgeSession();
   const navigate = useNavigate();
   const online = useOnline();
   const { queue, needingAttention } = useQueue();
@@ -147,11 +147,18 @@ export function MyMarks() {
         </select>
       </div>
 
-      {!rows ? (
+      {!sessionId ? (
+        // Without a session, the fetch above never runs and `rows` would
+        // otherwise stay null forever — this used to show a spinner with
+        // nothing to wait for instead of this message.
+        <p className="muted" style={{ textAlign: 'center', padding: 'var(--space-8) 0' }}>
+          Choose a session first.
+        </p>
+      ) : !rows ? (
         <LoadingState />
       ) : filtered.length === 0 ? (
         <p className="muted" style={{ textAlign: 'center', padding: 'var(--space-8) 0' }}>
-          {bundle ? 'No marks submitted yet in this session.' : 'Choose a session first.'}
+          No marks submitted yet in this session.
         </p>
       ) : (
         <div className="stack-sm">

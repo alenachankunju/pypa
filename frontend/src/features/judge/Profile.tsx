@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
 import { useTheme } from '../../lib/theme';
-import { ErrorState } from '../../components/ui';
+import { Avatar, ErrorState } from '../../components/ui';
 import { useJudgeSession } from './JudgeSession';
 
 export function Profile() {
@@ -46,7 +46,8 @@ export function Profile() {
 
   return (
     <div className="stack-lg">
-      <div className="card stack-sm" style={{ textAlign: 'center' }}>
+      <div className="card stack-sm" style={{ alignItems: 'center', textAlign: 'center' }}>
+        <Avatar name={user?.fullName ?? '?'} size="lg" />
         <div className="participant-name">{user?.fullName}</div>
         <div className="muted">{user?.username}</div>
         {bundle && <div className="badge badge-neutral">{bundle.session.name}</div>}
