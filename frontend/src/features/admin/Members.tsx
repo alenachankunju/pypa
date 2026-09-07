@@ -52,6 +52,27 @@ interface IneligibleRegistration {
   reason: string;
 }
 
+interface ImportRow {
+  rowNumber: number;
+  raw: Record<string, unknown>;
+  errors: { field: string; code: string; message: string }[];
+  warnings: { field: string; message: string }[];
+  status: 'VALID' | 'INVALID';
+}
+interface ImportPreview {
+  batchId: string;
+  filename: string;
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  rows: ImportRow[];
+}
+interface ImportCommitResult {
+  batchId: string;
+  committed: number;
+  failed: number;
+}
+
 export function Members() {
   const { can } = useAuth();
   const [rows, setRows] = useState<MemberRow[] | null>(null);
@@ -78,6 +99,13 @@ export function Members() {
     message: string;
     ineligible: IneligibleRegistration[];
   } | null>(null);
+
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importError, setImportError] = useState<unknown>(null);
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
+  const [importResult, setImportResult] = useState<ImportCommitResult | null>(null);
 
   function load() {
     api
@@ -219,6 +247,57 @@ export function Members() {
     load();
   }
 
+  async function downloadTemplate() {
+    try {
+      const { blob, filename } = await api.downloadFile('/api/admin/members/import/template');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename ?? 'member-import-template.xlsx';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err);
+    }
+  }
+
+  function openImport() {
+    setImportOpen(true);
+    setImportFile(null);
+    setImportPreview(null);
+    setImportResult(null);
+    setImportError(null);
+  }
+
+  async function uploadForPreview() {
+    if (!importFile) return;
+    setImportBusy(true);
+    setImportError(null);
+    try {
+      const { data } = await api.uploadFile<ImportPreview>('/api/admin/members/import/preview', importFile);
+      setImportPreview(data);
+    } catch (err) {
+      setImportError(err);
+    } finally {
+      setImportBusy(false);
+    }
+  }
+
+  async function commitImport() {
+    if (!importPreview) return;
+    setImportBusy(true);
+    setImportError(null);
+    try {
+      const data = await api.post<ImportCommitResult>(`/api/admin/members/import/${importPreview.batchId}/commit`);
+      setImportResult(data);
+      load();
+    } catch (err) {
+      setImportError(err);
+    } finally {
+      setImportBusy(false);
+    }
+  }
+
   if (error) return <ErrorState error={error} onRetry={load} />;
 
   return (
@@ -227,9 +306,17 @@ export function Members() {
         title="Members"
         actions={
           can('MANAGE_MEMBERS') && (
-            <button type="button" className="btn btn-primary" onClick={startCreate}>
-              + Add member
-            </button>
+            <>
+              <button type="button" className="btn btn-secondary" onClick={() => void downloadTemplate()}>
+                Download template
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={openImport}>
+                Import from Excel
+              </button>
+              <button type="button" className="btn btn-primary" onClick={startCreate}>
+                + Add member
+              </button>
+            </>
           )
         }
       />
@@ -538,6 +625,112 @@ export function Members() {
             </div>
           </div>
         )}
+      </Sheet>
+
+      <Sheet open={importOpen} onClose={() => setImportOpen(false)} title="Bulk import members">
+        <div className="stack">
+          <p className="text-sm muted">
+            Download the template, fill in one row per member (use the Church dropdown), then upload it here.
+            Nothing is created until you review the preview below and confirm.
+          </p>
+          <div>
+            <button type="button" className="btn btn-secondary" onClick={() => void downloadTemplate()}>
+              Download template
+            </button>
+          </div>
+
+          {!importPreview && !importResult && (
+            <>
+              <Field label="Excel file (.xlsx)">
+                <input type="file" accept=".xlsx" onChange={(e) => setImportFile(e.target.files?.[0] ?? null)} />
+              </Field>
+              {importError !== null && <ErrorState error={importError} />}
+              <div className="row" style={{ justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-ghost" onClick={() => setImportOpen(false)}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={!importFile || importBusy}
+                  onClick={() => void uploadForPreview()}
+                >
+                  {importBusy ? 'Checking…' : 'Preview'}
+                </button>
+              </div>
+            </>
+          )}
+
+          {importPreview && !importResult && (
+            <>
+              <div className={`banner ${importPreview.invalidRows > 0 ? 'banner-warning' : 'banner-success'}`}>
+                {importPreview.totalRows} row(s) found — {importPreview.validRows} ready to import
+                {importPreview.invalidRows > 0 ? `, ${importPreview.invalidRows} need fixing (won't be imported)` : ''}.
+              </div>
+              <div className="table-wrap" style={{ maxHeight: 360, overflowY: 'auto' }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Row</th>
+                      <th>Chest</th>
+                      <th>Name</th>
+                      <th>Church</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importPreview.rows.map((r) => (
+                      <tr key={r.rowNumber}>
+                        <td className="num">{r.rowNumber}</td>
+                        <td>{String(r.raw.chestNumber ?? '')}</td>
+                        <td>{String(r.raw.fullName ?? '')}</td>
+                        <td>{String(r.raw.church ?? '')}</td>
+                        <td>
+                          {r.status === 'VALID' ? (
+                            <span className="badge badge-success">Ready</span>
+                          ) : (
+                            <span className="badge badge-danger">{r.errors.map((e) => e.message).join(' ')}</span>
+                          )}
+                          {r.warnings.length > 0 && (
+                            <div className="text-xs muted">{r.warnings.map((w) => w.message).join(' ')}</div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {importError !== null && <ErrorState error={importError} />}
+              <div className="row" style={{ justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-ghost" onClick={() => setImportOpen(false)}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={importBusy || importPreview.validRows === 0}
+                  onClick={() => void commitImport()}
+                >
+                  {importBusy ? 'Importing…' : `Import ${importPreview.validRows} member(s)`}
+                </button>
+              </div>
+            </>
+          )}
+
+          {importResult && (
+            <>
+              <div className="banner banner-success">
+                {importResult.committed} member(s) created
+                {importResult.failed > 0 ? `, ${importResult.failed} failed at the last moment (chest number taken by someone else) — re-download the template and retry those.` : '.'}
+              </div>
+              <div className="row" style={{ justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-primary" onClick={() => setImportOpen(false)}>
+                  Done
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </Sheet>
 
       <ConfirmDialog

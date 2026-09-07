@@ -375,6 +375,71 @@ export async function downloadFile(
   return { blob: await response.blob(), filename: match?.[1] ?? null };
 }
 
+/**
+ * A file upload (bulk import). Like request(), but sends a FormData body
+ * instead of JSON — the browser sets the multipart Content-Type/boundary
+ * itself, which is why this can't just add a header to request().
+ */
+export async function uploadFile<T>(path: string, file: File): Promise<ApiResult<T>> {
+  const url = new URL(`${BASE_URL}${path}`, window.location.origin);
+
+  if (accessToken && accessExpiresAt && Date.now() > accessExpiresAt - 30_000) {
+    await refreshAccessToken();
+  }
+
+  const send = () => {
+    const form = new FormData();
+    form.append('file', file);
+    return fetch(url.toString(), {
+      method: 'POST',
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      body: form,
+    });
+  };
+
+  let response: Response;
+  try {
+    response = await send();
+  } catch {
+    throw new ApiError(ErrorCode.NETWORK_OFFLINE, 'No connection. Check the network and try again.', 0);
+  }
+
+  if (response.status === 401) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      try {
+        response = await send();
+      } catch {
+        throw new ApiError(ErrorCode.NETWORK_OFFLINE, 'No connection. Check the network and try again.', 0);
+      }
+    }
+  }
+
+  let payload: ApiSuccessBody<T> | ApiFailureBody;
+  try {
+    payload = (await response.json()) as ApiSuccessBody<T> | ApiFailureBody;
+  } catch {
+    throw new ApiError(
+      ErrorCode.INTERNAL_ERROR,
+      `The server returned an unexpected response (${response.status}).`,
+      response.status,
+    );
+  }
+
+  if (!response.ok || payload.success === false) {
+    const failure = payload as ApiFailureBody;
+    throw new ApiError(
+      failure.error?.code ?? ErrorCode.INTERNAL_ERROR,
+      failure.error?.message ?? 'Something went wrong. Please try again.',
+      response.status,
+      failure.error?.details,
+      failure.meta?.requestId,
+    );
+  }
+
+  return { data: payload.data, meta: payload.meta };
+}
+
 /** Convenience wrappers. Most callers want the data and nothing else. */
 export const api = {
   get: <T>(path: string, query?: RequestOptions['query'], signal?: AbortSignal) =>
@@ -396,6 +461,7 @@ export const api = {
   raw: request,
 
   downloadFile,
+  uploadFile,
 };
 
 export { refreshAccessToken };

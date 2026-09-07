@@ -23,6 +23,7 @@ import { errors } from '../../utils/errors.js';
 import { auditedUpdate, crudContext } from '../../utils/crud.js';
 import { asyncHandler, created, ok, pageParams, paginated } from '../../utils/http.js';
 import { createRegistration } from '../registrations/registrations.service.js';
+import { memberImportRoutes } from './memberImport.routes.js';
 
 /** ADM-05-02 field set. */
 const memberSchema = z.object({
@@ -216,6 +217,14 @@ export function memberRoutes(): Router {
       return ok(res, member);
     }),
   );
+
+  /**
+   * ADM-05-07: bulk import. Mounted before /:id so "/import/template" etc.
+   * (two path segments) are matched here rather than falling through — though
+   * a single-segment /:id route would never match a two-segment path anyway,
+   * keeping it above documents that these are meant to run first.
+   */
+  router.use('/import', memberImportRoutes());
 
   router.get(
     '/:id',
