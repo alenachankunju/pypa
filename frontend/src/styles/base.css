@@ -72,9 +72,11 @@ h1,
 h2,
 h3,
 h4 {
+  font-family: var(--font-display);
   line-height: var(--leading-tight);
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-tight);
+  text-wrap: balance;
 }
 
 /* FSD 11.3: "All interactive elements keyboard reachable and screen-reader
@@ -201,6 +203,7 @@ h4 {
 }
 
 .page-title {
+  font-family: var(--font-display);
   font-size: var(--text-xl);
   font-weight: var(--weight-semibold);
 }
@@ -208,6 +211,7 @@ h4 {
 /* FSD 10.1: chest numbers, marks and member names use significantly larger
    type. These three classes are the entire implementation of that rule. */
 .chest-number {
+  font-family: var(--font-display);
   font-size: var(--text-4xl);
   font-weight: var(--weight-bold);
   line-height: 1;
@@ -216,12 +220,14 @@ h4 {
 }
 
 .participant-name {
+  font-family: var(--font-display);
   font-size: var(--text-2xl);
   font-weight: var(--weight-semibold);
   line-height: var(--leading-tight);
 }
 
 .mark-value {
+  font-family: var(--font-display);
   font-size: var(--text-3xl);
   font-weight: var(--weight-bold);
   line-height: 1;
@@ -229,6 +235,7 @@ h4 {
 }
 
 .mark-value-hero {
+  font-family: var(--font-display);
   font-size: var(--text-5xl);
   font-weight: var(--weight-bold);
   line-height: 1;
@@ -330,6 +337,7 @@ h4 {
 }
 
 .card-title {
+  font-family: var(--font-display);
   font-size: var(--text-lg);
   font-weight: var(--weight-semibold);
 }
@@ -344,6 +352,7 @@ h4 {
 }
 
 .stat-value {
+  font-family: var(--font-display);
   font-size: var(--text-2xl);
   font-weight: var(--weight-bold);
   line-height: 1.1;
@@ -865,6 +874,35 @@ h4 {
   .bottom-nav.admin-nav { display: none; }
 }
 
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-4);
+  margin-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.sidebar-brand-mark {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(155deg, var(--indigo-500), var(--indigo-700));
+  border-radius: var(--radius-md);
+}
+
+.sidebar-brand-name {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
 .nav-group + .nav-group { margin-top: var(--space-5); }
 
 .nav-group-label {
@@ -1039,6 +1077,111 @@ h4 {
   font-size: var(--text-lg);
   font-weight: var(--weight-semibold);
   color: var(--text-muted);
+}
+
+/* --- Login screen -----------------------------------------------------------
+   Split panel: a branded hero beside the sign-in form. The hero is hidden
+   below the split breakpoint (FSD 10.1 is mobile-first), so a phone gets the
+   form alone, full width, exactly as before this section existed. */
+
+.login-screen {
+  min-height: 100vh;
+  display: flex;
+}
+
+.login-brand {
+  display: none;
+  flex: 1 1 46%;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--space-16);
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 15% 15%, rgb(255 255 255 / 0.08), transparent 45%),
+    linear-gradient(155deg, var(--indigo-700) 0%, var(--ink-900) 100%);
+}
+
+.login-brand::after {
+  /* A faint ring, echoing the certificate border motif — atmosphere, not a
+     competing shape, so it sits mostly off-canvas. */
+  content: '';
+  position: absolute;
+  right: -180px;
+  bottom: -180px;
+  width: 460px;
+  height: 460px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 50%;
+}
+
+.login-brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: var(--space-6);
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #fff;
+  background: rgb(255 255 255 / 0.08);
+  border: 1px solid rgb(255 255 255 / 0.25);
+  border-radius: var(--radius-lg);
+}
+
+.login-brand-title {
+  max-width: 14ch;
+  font-size: var(--text-3xl);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+}
+
+.login-brand-tagline {
+  max-width: 34ch;
+  margin-top: var(--space-3);
+  font-size: var(--text-lg);
+  color: rgb(255 255 255 / 0.78);
+}
+
+.login-brand-rule {
+  width: 64px;
+  height: 3px;
+  margin: var(--space-8) 0 var(--space-6);
+  background: var(--gold-500);
+  border-radius: var(--radius-full);
+}
+
+.login-brand-footnote {
+  font-size: var(--text-sm);
+  color: rgb(255 255 255 / 0.6);
+}
+
+.login-panel {
+  flex: 1 1 54%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--surface-page);
+}
+
+.login-form-wrap { width: 100%; max-width: 380px; }
+
+.login-form-header { margin-bottom: var(--space-6); text-align: center; }
+
+.login-form-header .login-brand-mark-compact {
+  margin: 0 auto var(--space-4);
+  color: #fff;
+  background: var(--accent);
+  border-color: transparent;
+}
+
+@media (min-width: 900px) {
+  .login-brand { display: flex; }
+  .login-form-header .login-brand-mark-compact { display: none; }
 }
 
 /* --- Print (FSD 5.13: result sheets must be printable and signable) ------- */

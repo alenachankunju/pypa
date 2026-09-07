@@ -56,93 +56,83 @@ export function Login() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 'var(--space-4)',
-      }}
-    >
-      <div className="card stack" style={{ width: '100%', maxWidth: 380 }}>
-        <div style={{ textAlign: 'center' }}>
-          <div
-            aria-hidden="true"
-            style={{
-              width: 56,
-              height: 56,
-              margin: '0 auto var(--space-3)',
-              borderRadius: 'var(--radius-lg)',
-              background: 'var(--accent)',
-              color: '#fff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '1.5rem',
-              fontWeight: 700,
-            }}
-          >
-            P
-          </div>
-          <h1 className="page-title">PYPA Marking System</h1>
-          <p className="text-sm muted">Sign in to continue</p>
-        </div>
+    <div className="login-screen">
+      {/* Branded panel — hidden below the split breakpoint (.login-brand's own
+          media query), so mobile gets the form full-screen rather than a
+          squeezed-down version of both halves. */}
+      <div className="login-brand" aria-hidden="true">
+        <div className="login-brand-mark">P</div>
+        <h1 className="login-brand-title">PYPA Marking System</h1>
+        <p className="login-brand-tagline">Competition registration, live judging and results</p>
+        <div className="login-brand-rule" />
+        <p className="login-brand-footnote">Pentecostal Youth &amp; Pathfinders Association</p>
+      </div>
 
-        <form className="stack" onSubmit={handleSubmit} noValidate>
-          <div className="field">
-            <label className="label" htmlFor="username">
-              Username
-            </label>
-            <input
-              id="username"
-              className="input"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
-              autoCapitalize="off"
-              autoCorrect="off"
-              required
-            />
+      <div className="login-panel">
+        <div className="login-form-wrap">
+          <div className="login-form-header">
+            <div className="login-brand-mark login-brand-mark-compact" aria-hidden="true">
+              P
+            </div>
+            <h1 className="page-title">Sign in</h1>
+            <p className="text-sm muted">Enter your username and password to continue.</p>
           </div>
 
-          <div className="field">
-            <label className="label" htmlFor="password">
-              Password
-            </label>
-            <div className="row" style={{ position: 'relative' }}>
+          <form className="stack" onSubmit={handleSubmit} noValidate>
+            <div className="field">
+              <label className="label" htmlFor="username">
+                Username
+              </label>
               <input
-                id="password"
+                id="username"
                 className="input"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+                autoCapitalize="off"
+                autoCorrect="off"
                 required
               />
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                style={{ position: 'absolute', right: 4 }}
-                onClick={() => setShowPassword((s) => !s)}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-              >
-                {showPassword ? 'Hide' : 'Show'}
-              </button>
             </div>
-          </div>
 
-          {error && <Banner tone="danger">{error}</Banner>}
+            <div className="field">
+              <label className="label" htmlFor="password">
+                Password
+              </label>
+              <div className="row" style={{ position: 'relative' }}>
+                <input
+                  id="password"
+                  className="input"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  style={{ position: 'absolute', right: 4 }}
+                  onClick={() => setShowPassword((s) => !s)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </div>
 
-          <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={busy}>
-            {busy ? 'Signing in…' : 'Sign in'}
-          </button>
-        </form>
+            {error && <Banner tone="danger">{error}</Banner>}
 
-        {/* ADM-01-06: forgot password is deliberately NOT self-service. */}
-        <p className="text-xs subtle" style={{ textAlign: 'center' }}>
-          Forgotten your password? Ask your administrator to reset it.
-        </p>
+            <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={busy}>
+              {busy ? 'Signing in…' : 'Sign in'}
+            </button>
+          </form>
+
+          {/* ADM-01-06: forgot password is deliberately NOT self-service. */}
+          <p className="text-xs subtle" style={{ textAlign: 'center' }}>
+            Forgotten your password? Ask your administrator to reset it.
+          </p>
+        </div>
       </div>
     </div>
   );

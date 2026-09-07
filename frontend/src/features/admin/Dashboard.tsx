@@ -7,6 +7,14 @@ import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { relativeTime } from '../../lib/format';
 import { ErrorState, LoadingState, PageHeader, StatCard } from '../../components/ui';
+import { useAuth } from '../../lib/auth';
+
+function greeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
 
 interface DashboardData {
   counts: {
@@ -44,6 +52,7 @@ interface ChecklistStep {
 }
 
 export function Dashboard() {
+  const { user } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [checklist, setChecklist] = useState<{ steps: ChecklistStep[]; nextStep: ChecklistStep | null } | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -72,7 +81,10 @@ export function Dashboard() {
 
   return (
     <div className="stack-lg">
-      <PageHeader title="Dashboard" subtitle="Event overview and outstanding work" />
+      <PageHeader
+        title={`${greeting()}${user?.fullName ? `, ${user.fullName.split(' ')[0]}` : ''}`}
+        subtitle="Here's where the event stands right now."
+      />
 
       {checklist?.nextStep && (
         <div className="banner banner-info">

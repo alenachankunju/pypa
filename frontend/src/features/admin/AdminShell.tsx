@@ -90,25 +90,12 @@ export function AdminShell() {
   return (
     <div className="admin-shell">
       <aside className="admin-sidebar">
-        <div className="row" style={{ padding: 'var(--space-2) var(--space-3)', marginBottom: 'var(--space-3)' }}>
-          <div
-            aria-hidden="true"
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--accent)',
-              color: '#fff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 700,
-            }}
-          >
+        <div className="sidebar-brand">
+          <div className="sidebar-brand-mark" aria-hidden="true">
             P
           </div>
           <div style={{ lineHeight: 1.2 }}>
-            <div className="text-sm strong">PYPA Marking</div>
+            <div className="sidebar-brand-name">PYPA Marking</div>
             <div className="text-xs muted">{user?.role.replace('_', ' ')}</div>
           </div>
         </div>
