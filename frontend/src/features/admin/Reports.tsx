@@ -23,6 +23,10 @@ interface ChurchOption {
   id: string;
   name: string;
 }
+interface CategoryOption {
+  id: string;
+  name: string;
+}
 
 async function downloadReport(path: string, format: 'pdf' | 'xlsx' | undefined, fallbackName: string) {
   const { blob, filename } = await api.downloadFile(path, format ? { format } : undefined);
@@ -42,6 +46,8 @@ export function Reports() {
   const [selectedItemId, setSelectedItemId] = useState('');
   const [churches, setChurches] = useState<ChurchOption[]>([]);
   const [selectedChurchId, setSelectedChurchId] = useState('');
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
@@ -58,6 +64,13 @@ export function Reports() {
       .then((data) => {
         setChurches(data);
         if (data.length > 0) setSelectedChurchId(data[0]!.id);
+      })
+      .catch(() => undefined);
+    api
+      .get<CategoryOption[]>('/api/admin/categories', { pageSize: 200 })
+      .then((data) => {
+        setCategories(data);
+        if (data.length > 0) setSelectedCategoryId(data[0]!.id);
       })
       .catch(() => undefined);
   }, []);
@@ -181,6 +194,55 @@ export function Reports() {
         </div>
       </div>
 
+      <div className="card stack">
+        <p className="eyebrow">Category detail sheet</p>
+        <p className="text-xs muted" style={{ marginTop: 'calc(var(--space-2) * -1)' }}>
+          Every item restricted to this category, with each participant's full judge-by-judge marks — a
+          category-wise backup of the mark lists.
+        </p>
+        <Field label="Category">
+          <select className="select" value={selectedCategoryId} onChange={(e) => setSelectedCategoryId(e.target.value)}>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <div className="row">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={!selectedCategoryId || busy !== null}
+            onClick={() =>
+              void run(
+                'category-detail-pdf',
+                `/api/admin/reports/category-results?categoryId=${selectedCategoryId}`,
+                'pdf',
+                'category-results.pdf',
+              )
+            }
+          >
+            {busy === 'category-detail-pdf' ? 'Generating…' : 'Download PDF'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={!selectedCategoryId || busy !== null}
+            onClick={() =>
+              void run(
+                'category-detail-xlsx',
+                `/api/admin/reports/category-results?categoryId=${selectedCategoryId}`,
+                'xlsx',
+                'category-results.xlsx',
+              )
+            }
+          >
+            {busy === 'category-detail-xlsx' ? 'Generating…' : 'Download Excel'}
+          </button>
+        </div>
+      </div>
+
       <div className="card">
         <p className="eyebrow" style={{ marginBottom: 'var(--space-3)' }}>
           Event-wide reports
@@ -217,6 +279,14 @@ export function Reports() {
             onXlsx={() => void run('consolidated-xlsx', '/api/admin/reports/consolidated', 'xlsx', 'consolidated-results.xlsx')}
             pdfKey="consolidated-pdf"
             xlsxKey="consolidated-xlsx"
+          />
+          <ReportTile
+            name="Category-wise results (full backup)"
+            busy={busy}
+            onPdf={() => void run('category-all-pdf', '/api/admin/reports/category-results', 'pdf', 'category-results-all.pdf')}
+            onXlsx={() => void run('category-all-xlsx', '/api/admin/reports/category-results', 'xlsx', 'category-results-all.xlsx')}
+            pdfKey="category-all-pdf"
+            xlsxKey="category-all-xlsx"
           />
           <div className="card stack-sm" style={{ background: 'var(--surface-sunken)' }}>
             <span className="text-sm strong">Badge sheet</span>

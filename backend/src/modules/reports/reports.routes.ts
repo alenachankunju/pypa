@@ -10,6 +10,7 @@ import { requireActiveEvent } from '../../middleware/eventContext.js';
 import { validate } from '../../middleware/validate.js';
 import {
   badgeSheetReport,
+  categoryResultsReport,
   certificatesReport,
   championSheet,
   churchDetailSheet,
@@ -83,6 +84,16 @@ export function reportRoutes(): Router {
       const { format } = req.query as unknown as { format: ReportFormat };
       const event = activeEvent(res);
       send(res, await consolidatedResultsReport(event.id, event.name, format));
+    }),
+  );
+
+  router.get(
+    '/category-results',
+    validate({ query: formatQuery.extend({ categoryId: z.string().uuid().optional() }) }),
+    asyncHandler(async (req, res) => {
+      const { format, categoryId } = req.query as unknown as { format: ReportFormat; categoryId?: string };
+      const event = activeEvent(res);
+      send(res, await categoryResultsReport(event.id, event.name, format, categoryId));
     }),
   );
 

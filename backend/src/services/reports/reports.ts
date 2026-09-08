@@ -402,6 +402,197 @@ export async function consolidatedResultsReport(eventId: string, eventName: stri
 }
 
 // ---------------------------------------------------------------------------
+// Category-wise results — a full mark-list backup, grouped by age category
+// rather than consolidatedResultsReport's flat alphabetical-by-item list.
+// ---------------------------------------------------------------------------
+
+/**
+ * Every item's mark list, grouped by category (age band) instead of listed
+ * flat and alphabetical like consolidatedResultsReport. One worksheet/section
+ * per category, in age order (lower category to higher — the same ordering
+ * the live console uses), each holding every item restricted to that
+ * category with its full judge-by-judge marks. Pass categoryId to scope the
+ * whole thing to one category; omit it for a complete event-wide backup.
+ *
+ * Grouping is by the ITEM's own category (items.category_id), not each
+ * participant's — an item marked "open to all categories" isn't a member of
+ * any single category's mark list this way, so those are collected into
+ * their own trailing section instead of being split participant-by-
+ * participant across every category, which is the same choice the live
+ * console's ordering fix already made for this exact ambiguity.
+ *
+ * Unlike consolidatedResultsReport, this is not restricted to published
+ * items — it's a working backup tool, not an announcement, so an
+ * IN_PROGRESS or READY item's marks are included too (watermarked
+ * provisional, same as the leaderboard/champion sheets) rather than being
+ * silently absent from the "backup".
+ */
+export async function categoryResultsReport(
+  eventId: string,
+  eventName: string,
+  format: ReportFormat,
+  categoryId?: string,
+): Promise<ReportFile> {
+  const categories = await db
+    .selectFrom('categories')
+    .select(['id', 'name', 'min_age', 'max_age'])
+    .where('event_id', '=', eventId)
+    .$if(Boolean(categoryId), (qb) => qb.where('id', '=', categoryId!))
+    .orderBy('min_age')
+    .orderBy('name')
+    .execute();
+
+  if (categoryId && categories.length === 0) {
+    throw errors.notFound('Category', categoryId);
+  }
+
+  const itemsQuery = db
+    .selectFrom('items')
+    .select(['id', 'name', 'code', 'category_id', 'open_to_all_categories'])
+    .where('event_id', '=', eventId)
+    .where('status', '!=', 'CANCELLED');
+
+  const items = categoryId
+    ? await itemsQuery.where('category_id', '=', categoryId).where('open_to_all_categories', '=', false).orderBy('name').execute()
+    : await itemsQuery.orderBy('name').execute();
+
+  const summary = await publicationSummary(eventId);
+  const results = await Promise.all(items.map((item) => getItemResult(item.id)));
+  const resultByItemId = new Map(items.map((item, i) => [item.id, results[i]!]));
+
+  const openItems = categoryId ? [] : items.filter((i) => i.open_to_all_categories);
+  const provisionalNote =
+    summary.unpublished > 0 ? `${summary.unpublished} item(s) event-wide still unpublished — provisional.` : 'All items published.';
+
+  function itemsForCategory(catId: string) {
+    return items.filter((i) => i.category_id === catId && !i.open_to_all_categories);
+  }
+
+  if (format === 'xlsx') {
+    const buffer = await excelBuffer((workbook) => {
+      const writeItemBlock = (sheet: ExcelJS.Worksheet, item: (typeof items)[number]) => {
+        const result = resultByItemId.get(item.id)!;
+        const judgeNames = [...new Set(result.rows.flatMap((r) => r.judgeMarks.map((m) => m.judgeName)))].sort();
+        sheet.addRow([`${item.name} (${item.code})`]);
+        if (result.rows.length === 0) {
+          sheet.addRow(['No results yet.']);
+        } else {
+          const header = sheet.addRow(['Position', 'Chest', 'Participant', 'Church', ...judgeNames, 'Aggregate', 'Grade', 'Points']);
+          styleHeaderRow(header);
+          for (const row of result.rows) {
+            const marksByJudge = new Map(row.judgeMarks.map((m) => [m.judgeName, m.mark]));
+            sheet.addRow([
+              row.isSharedPosition ? `${row.position}=` : (row.position ?? '—'),
+              row.chestNumber ?? '—',
+              row.participantName,
+              row.churchName ?? '—',
+              ...judgeNames.map((n) => marksByJudge.get(n) ?? ''),
+              row.aggregate ?? '',
+              row.grade ?? '',
+              row.points,
+            ]);
+          }
+        }
+        sheet.addRow([]);
+      };
+
+      for (const category of categories) {
+        const catItems = itemsForCategory(category.id);
+        const sheet = workbook.addWorksheet(category.name.slice(0, 31));
+        sheet.addRow([eventName]);
+        sheet.addRow([`${category.name} (age ${category.min_age}–${category.max_age})`]);
+        sheet.addRow([provisionalNote]);
+        sheet.addRow([]);
+        if (catItems.length === 0) sheet.addRow(['No items in this category.']);
+        for (const item of catItems) writeItemBlock(sheet, item);
+        sheet.columns.forEach((col) => (col.width = 16));
+      }
+
+      if (openItems.length > 0) {
+        const sheet = workbook.addWorksheet('Open to All Categories');
+        sheet.addRow([eventName]);
+        sheet.addRow(['Open to All Categories']);
+        sheet.addRow([provisionalNote]);
+        sheet.addRow([]);
+        for (const item of openItems) writeItemBlock(sheet, item);
+        sheet.columns.forEach((col) => (col.width = 16));
+      }
+    });
+    const suffix = categoryId ? categories[0]!.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase() : 'all';
+    return {
+      buffer,
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      filename: `category-results-${suffix}.xlsx`,
+    };
+  }
+
+  const content: Content[] = [
+    { text: eventName, style: 'subtitle' },
+    { text: 'Category-wise Results', style: 'title' },
+  ];
+  if (summary.unpublished > 0) {
+    content.push({ text: `PROVISIONAL — ${provisionalNote}`, style: 'watermark' });
+  }
+
+  // Category (and "Open to All") headers start a fresh page; items within a
+  // category just flow one after another on the same pages — simpler and
+  // more readable than forcing every single item onto its own page.
+  const writeItemSection = (item: (typeof items)[number]) => {
+    const result = resultByItemId.get(item.id)!;
+    const judgeNames = [...new Set(result.rows.flatMap((r) => r.judgeMarks.map((m) => m.judgeName)))].sort();
+    content.push({ text: `${item.name} (${item.code})`, style: 'sectionHeader' });
+    if (result.rows.length === 0) {
+      content.push({ text: 'No results yet.', italics: true });
+      return;
+    }
+    const tableBody: TableCell[][] = [
+      ['Pos', 'Chest', 'Participant', 'Church', ...judgeNames, 'Agg', 'Grade', 'Pts'].map((t) => ({ text: t, style: 'tableHeader' })),
+    ];
+    for (const row of result.rows) {
+      const marksByJudge = new Map(row.judgeMarks.map((m) => [m.judgeName, m.mark]));
+      tableBody.push([
+        { text: row.isSharedPosition ? `${row.position}=` : String(row.position ?? '—') },
+        { text: row.chestNumber ?? '—' },
+        { text: row.participantName },
+        { text: row.churchName ?? '—' },
+        ...judgeNames.map((n) => ({ text: String(marksByJudge.get(n) ?? '—') })),
+        { text: row.aggregate?.toFixed(2) ?? '—' },
+        { text: row.grade ?? '—' },
+        { text: String(row.points) },
+      ]);
+    }
+    content.push({
+      table: { headerRows: 1, widths: ['auto', 'auto', '*', 'auto', ...judgeNames.map(() => 'auto'), 'auto', 'auto', 'auto'], body: tableBody },
+      layout: 'lightHorizontalLines',
+    });
+  };
+
+  let firstSection = true;
+  for (const category of categories) {
+    const catItems = itemsForCategory(category.id);
+    content.push({
+      text: `${category.name} (age ${category.min_age}–${category.max_age})`,
+      style: 'sectionHeader',
+      pageBreak: firstSection ? undefined : 'before',
+    });
+    firstSection = false;
+    if (catItems.length === 0) {
+      content.push({ text: 'No items in this category.', italics: true });
+      continue;
+    }
+    catItems.forEach((item) => writeItemSection(item));
+  }
+  if (openItems.length > 0) {
+    content.push({ text: 'Open to All Categories', style: 'sectionHeader', pageBreak: firstSection ? undefined : 'before' });
+    openItems.forEach((item) => writeItemSection(item));
+  }
+
+  const buffer = await renderPdf({ content } as TDocumentDefinitions);
+  const suffix = categoryId ? categories[0]!.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase() : 'all';
+  return { buffer, contentType: 'application/pdf', filename: `category-results-${suffix}.pdf` };
+}
+
+// ---------------------------------------------------------------------------
 // Church detail sheet
 // ---------------------------------------------------------------------------
 
