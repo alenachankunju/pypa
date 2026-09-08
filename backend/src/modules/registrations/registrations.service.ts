@@ -356,6 +356,14 @@ export async function withdrawRegistration(
       .where('id', '=', registrationId)
       .execute();
 
+    // registration_members carries no status of its own, so a withdrawn
+    // team's roster rows would otherwise keep colliding with
+    // registration_members_item_member_key forever, blocking any of those
+    // members from being entered in this item again — individually or on a
+    // new team. The audit entry below already captured the roster at
+    // creation time, so clearing these live join rows loses no history.
+    await trx.deleteFrom('registration_members').where('registration_id', '=', registrationId).execute();
+
     // 7.1: a scheduled performance for a withdrawn registration becomes
     // WITHDRAWN too, so the result sheet accounts for the empty slot.
     await trx
@@ -382,6 +390,112 @@ export async function withdrawRegistration(
     );
 
     return { id: registrationId, status: 'WITHDRAWN' };
+  });
+}
+
+/**
+ * ADM-06-06 ("cannot be removed once a score exists") implies removal IS
+ * permitted otherwise — this is that path. Distinct from withdrawRegistration:
+ * withdraw is a recorded decision (the entry stays, flagged WITHDRAWN, for the
+ * competition record); this is for a genuine mistake, where the entry should
+ * disappear entirely rather than leave a permanent "withdrawn" trace for
+ * something that was never a real entry.
+ *
+ * The registrations_delete_guard DB trigger (migration 0009) is the actual
+ * backstop against deleting a scored registration — it counts every score
+ * including revoked ones, stricter than the check here — so this app-level
+ * check exists only to fail with a clear message instead of a raw constraint
+ * error.
+ */
+export async function deleteRegistration(
+  registrationId: string,
+  reason: string,
+  actor: AuditActor,
+  userId: string,
+): Promise<{ id: string; deleted: true }> {
+  return db.transaction().execute(async (trx) => {
+    const registration = await trx
+      .selectFrom('registrations as r')
+      .innerJoin('items as i', 'i.id', 'r.item_id')
+      .leftJoin('members as m', 'm.id', 'r.member_id')
+      .select([
+        'r.id',
+        'r.event_id',
+        'r.item_id',
+        'r.church_id',
+        'r.team_name',
+        'i.name as item_name',
+        'm.full_name as member_name',
+        'm.chest_number',
+      ])
+      .where('r.id', '=', registrationId)
+      .executeTakeFirst();
+
+    if (!registration) throw errors.notFound('Registration', registrationId);
+
+    const { count } = await trx
+      .selectFrom('scores as s')
+      .innerJoin('performances as p', 'p.id', 's.performance_id')
+      .select((eb) => eb.fn.countAll<number>().as('count'))
+      .where('p.registration_id', '=', registrationId)
+      .where('s.revoked', '=', false)
+      .executeTakeFirstOrThrow();
+
+    if (Number(count) > 0) {
+      throw errors.inUse(
+        `This entry already has ${count} submitted mark(s) and cannot be deleted (FSD ADM-06-06). Withdraw it instead.`,
+        { scoreCount: Number(count) },
+      );
+    }
+
+    const memberIds = await trx
+      .selectFrom('registration_members')
+      .select('member_id')
+      .where('registration_id', '=', registrationId)
+      .execute();
+
+    // FSD 4.1's model has one performance per registration attempt, so this
+    // is at most one row — but any that exists (necessarily unscored, per the
+    // check above) is a real database row RESTRICTing the delete below.
+    const performanceIds = await trx
+      .selectFrom('performances')
+      .select('id')
+      .where('registration_id', '=', registrationId)
+      .execute();
+
+    if (performanceIds.length > 0) {
+      await trx
+        .deleteFrom('performance_judges')
+        .where('performance_id', 'in', performanceIds.map((p) => p.id))
+        .execute();
+      await trx.deleteFrom('performances').where('registration_id', '=', registrationId).execute();
+    }
+
+    await trx.deleteFrom('registration_members').where('registration_id', '=', registrationId).execute();
+    await trx.deleteFrom('registrations').where('id', '=', registrationId).execute();
+
+    await writeAudit(
+      {
+        eventId: registration.event_id,
+        actor,
+        action: AuditAction.DELETED,
+        entityType: 'registration',
+        entityId: registrationId,
+        oldValue: {
+          itemId: registration.item_id,
+          itemName: registration.item_name,
+          churchId: registration.church_id,
+          chestNumber: registration.chest_number,
+          memberName: registration.member_name,
+          teamName: registration.team_name,
+          memberIds: memberIds.map((m) => m.member_id),
+        },
+        reason,
+      },
+      trx,
+    );
+
+    return { id: registrationId, deleted: true as const };
   });
 }
 

@@ -4,7 +4,7 @@
  */
 import { useEffect, useState } from 'react';
 import { ApiError, api } from '../../lib/api';
-import { AlertDialog, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
+import { AlertDialog, BulkImportSheet, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 
 interface Category {
@@ -30,6 +30,7 @@ export function Categories() {
   const [notice, setNotice] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Category | null>(null);
   const [inUseNotice, setInUseNotice] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   function load() {
     api
@@ -104,13 +105,18 @@ export function Categories() {
         subtitle="Age and eligibility bands for this event"
         actions={
           can('MANAGE_CATEGORIES') && (
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => setEditing({ minAge: 0, maxAge: 0, genderRestriction: 'ANY', isActive: true })}
-            >
-              + Add category
-            </button>
+            <>
+              <button type="button" className="btn btn-secondary" onClick={() => setImportOpen(true)}>
+                Import from Excel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setEditing({ minAge: 0, maxAge: 0, genderRestriction: 'ANY', isActive: true })}
+              >
+                + Add category
+              </button>
+            </>
           )
         }
       />
@@ -241,6 +247,22 @@ export function Categories() {
         busy={saving}
         onConfirm={() => void confirmDelete()}
         onCancel={() => setDeleting(null)}
+      />
+
+      <BulkImportSheet
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        title="Bulk import categories"
+        templatePath="/api/admin/categories/import/template"
+        previewPath="/api/admin/categories/import/preview"
+        commitPath={(batchId) => `/api/admin/categories/import/${batchId}/commit`}
+        columns={[
+          { key: 'name', label: 'Name' },
+          { key: 'minAge', label: 'Min Age' },
+          { key: 'maxAge', label: 'Max Age' },
+          { key: 'genderRestriction', label: 'Gender' },
+        ]}
+        onCommitted={load}
       />
 
       <AlertDialog error={alertError} onClose={() => setAlertError(null)} />

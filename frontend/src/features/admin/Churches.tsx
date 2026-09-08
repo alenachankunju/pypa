@@ -3,7 +3,7 @@
  */
 import { useEffect, useState } from 'react';
 import { ApiError, api } from '../../lib/api';
-import { AlertDialog, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
+import { AlertDialog, BulkImportSheet, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 
 interface Church {
@@ -33,6 +33,7 @@ export function Churches() {
   const [deleting, setDeleting] = useState<Church | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   function load() {
     api
@@ -131,9 +132,14 @@ export function Churches() {
         subtitle="Global master data, reused across events"
         actions={
           can('MANAGE_CHURCHES') && (
-            <button type="button" className="btn btn-primary" onClick={() => setEditing({ isActive: true })}>
-              + Add church
-            </button>
+            <>
+              <button type="button" className="btn btn-secondary" onClick={() => setImportOpen(true)}>
+                Import from Excel
+              </button>
+              <button type="button" className="btn btn-primary" onClick={() => setEditing({ isActive: true })}>
+                + Add church
+              </button>
+            </>
           )
         }
       />
@@ -312,6 +318,21 @@ export function Churches() {
         busy={saving}
         onConfirm={() => void confirmDelete()}
         onCancel={() => setDeleting(null)}
+      />
+
+      <BulkImportSheet
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        title="Bulk import churches"
+        templatePath="/api/admin/churches/import/template"
+        previewPath="/api/admin/churches/import/preview"
+        commitPath={(batchId) => `/api/admin/churches/import/${batchId}/commit`}
+        columns={[
+          { key: 'name', label: 'Name' },
+          { key: 'shortCode', label: 'Short Code' },
+          { key: 'zone', label: 'Zone' },
+        ]}
+        onCommitted={load}
       />
 
       <AlertDialog error={alertError} onClose={() => setAlertError(null)} />

@@ -6,7 +6,7 @@
  */
 import { useEffect, useState } from 'react';
 import { ApiError, api } from '../../lib/api';
-import { ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
+import { AlertDialog, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 
 interface ItemOption {
@@ -42,7 +42,13 @@ export function Registrations() {
   const [itemId, setItemId] = useState('');
   const [rows, setRows] = useState<RegistrationRow[] | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const [alertError, setAlertError] = useState<unknown>(null);
   const [churches, setChurches] = useState<ChurchOption[]>([]);
+
+  // Deleting a mistaken entry entirely, distinct from Withdraw (ADM-06-06).
+  const [deleting, setDeleting] = useState<RegistrationRow | null>(null);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   // ADM-06-01: search-and-add an individual participant.
   const [adding, setAdding] = useState(false);
@@ -82,13 +88,36 @@ export function Registrations() {
 
   async function withdraw(id: string) {
     const reason = window.prompt('Reason for withdrawal (optional):') ?? undefined;
-    await api.del(`/api/admin/registrations/${id}`, reason ? { reason } : undefined);
-    load();
+    try {
+      await api.del(`/api/admin/registrations/${id}`, reason ? { reason } : undefined);
+      load();
+    } catch (err) {
+      setAlertError(err);
+    }
   }
 
   async function generateCallSheet(mode: 'CHEST_NUMBER' | 'RANDOM' | 'CHURCH') {
-    await api.post('/api/admin/registrations/call-order', { itemId, mode });
-    load();
+    try {
+      await api.post('/api/admin/registrations/call-order', { itemId, mode });
+      load();
+    } catch (err) {
+      setAlertError(err);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    try {
+      await api.post(`/api/admin/registrations/${deleting.id}/purge`, { reason: deleteReason });
+      setDeleting(null);
+      setDeleteReason('');
+      load();
+    } catch (err) {
+      setAlertError(err);
+    } finally {
+      setDeleteBusy(false);
+    }
   }
 
   useEffect(() => {
@@ -230,11 +259,16 @@ export function Registrations() {
                     <td>{r.participantName}</td>
                     <td>{r.churchName}</td>
                     <td>{r.isLateEntry && <span className="badge badge-warning">Late entry</span>}</td>
-                    <td>
+                    <td className="row row-wrap">
                       {can('MANAGE_REGISTRATIONS') && (
-                        <button type="button" className="btn btn-sm btn-ghost" onClick={() => void withdraw(r.id)}>
-                          Withdraw
-                        </button>
+                        <>
+                          <button type="button" className="btn btn-sm btn-ghost" onClick={() => void withdraw(r.id)}>
+                            Withdraw
+                          </button>
+                          <button type="button" className="btn btn-sm btn-danger" onClick={() => setDeleting(r)}>
+                            Delete
+                          </button>
+                        </>
                       )}
                     </td>
                   </tr>
@@ -389,6 +423,31 @@ export function Registrations() {
           </div>
         )}
       </Sheet>
+
+      <ConfirmDialog
+        open={deleting !== null}
+        title="Delete registration"
+        consequence={
+          <>
+            <strong>{deleting?.participantName}</strong>'s entry in this item will be permanently removed —
+            not withdrawn, gone entirely. Use this only to correct a mistaken entry; use Withdraw for a real
+            decision to pull out (ADM-06-06).
+          </>
+        }
+        confirmLabel="Delete"
+        reasonLabel="Reason"
+        reasonMinLength={10}
+        reason={deleteReason}
+        onReasonChange={setDeleteReason}
+        busy={deleteBusy}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => {
+          setDeleting(null);
+          setDeleteReason('');
+        }}
+      />
+
+      <AlertDialog error={alertError} onClose={() => setAlertError(null)} />
     </div>
   );
 }

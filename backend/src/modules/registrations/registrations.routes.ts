@@ -13,6 +13,7 @@ import { asyncHandler, created, ok } from '../../utils/http.js';
 import {
   createRegistration,
   createTeamRegistration,
+  deleteRegistration,
   withdrawRegistration,
 } from './registrations.service.js';
 
@@ -231,6 +232,28 @@ export function registrationRoutes(): Router {
       const reason = (req.body as { reason?: string } | undefined)?.reason ?? null;
 
       const result = await withdrawRegistration(id, reason, actorFromRequest(req), req.auth!.userId);
+      return ok(res, result);
+    }),
+  );
+
+  /**
+   * ADM-06-06 implies removal is permitted while no score exists yet — for
+   * correcting a mistaken entry, as opposed to withdrawRegistration's DELETE
+   * above, which is a recorded decision and stays in the list as WITHDRAWN.
+   * A distinct path (rather than overloading DELETE) so the two can never be
+   * confused client-side.
+   */
+  router.post(
+    '/:id/purge',
+    validate({
+      params: z.object({ id: z.string().uuid() }),
+      body: z.object({ reason: z.string().min(10).max(500) }),
+    }),
+    asyncHandler(async (req, res) => {
+      const { id } = req.params as { id: string };
+      const { reason } = req.body as { reason: string };
+
+      const result = await deleteRegistration(id, reason, actorFromRequest(req), req.auth!.userId);
       return ok(res, result);
     }),
   );

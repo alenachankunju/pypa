@@ -6,8 +6,8 @@
  * that requirement made reusable, so no screen has to reinvent them and none
  * ends up shipping without them.
  */
-import type { ReactNode } from 'react';
-import { ApiError } from '../lib/api';
+import { useState, type ReactNode } from 'react';
+import { ApiError, api } from '../lib/api';
 
 // --- States ----------------------------------------------------------------
 
@@ -399,6 +399,241 @@ export function ConfirmDialog({
             {busy ? 'Working…' : confirmLabel}
           </button>
         </div>
+      </div>
+    </Sheet>
+  );
+}
+
+// --- Bulk import -------------------------------------------------------------
+//
+// One shared shell for every "download template / upload / preview / commit"
+// screen (Members, Churches, Categories, Items) — they differ only in which
+// endpoints they call and which raw columns are worth showing in the preview
+// table, so those are the only things each caller supplies.
+
+export interface ImportRowPreview {
+  rowNumber: number;
+  raw: Record<string, unknown>;
+  errors: { field: string; code: string; message: string }[];
+  warnings: { field: string; message: string }[];
+  status: 'VALID' | 'INVALID';
+}
+interface ImportPreviewResult {
+  batchId: string;
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  rows: ImportRowPreview[];
+}
+interface ImportCommitResult {
+  batchId: string;
+  committed: number;
+  failed: number;
+}
+
+export function BulkImportSheet({
+  open,
+  onClose,
+  title,
+  templatePath,
+  previewPath,
+  commitPath,
+  columns,
+  onCommitted,
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** e.g. "Bulk import churches" */
+  title: string;
+  templatePath: string;
+  previewPath: string;
+  commitPath: (batchId: string) => string;
+  /** Which raw columns to show in the preview table, in order. */
+  columns: { key: string; label: string }[];
+  /** Called once, after a successful commit, so the caller can refresh its list. */
+  onCommitted: () => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [preview, setPreview] = useState<ImportPreviewResult | null>(null);
+  const [result, setResult] = useState<ImportCommitResult | null>(null);
+
+  function reset() {
+    setFile(null);
+    setBusy(false);
+    setError(null);
+    setPreview(null);
+    setResult(null);
+  }
+
+  async function downloadTemplate() {
+    try {
+      const { blob, filename } = await api.downloadFile(templatePath);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename ?? 'import-template.xlsx';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err);
+    }
+  }
+
+  async function uploadForPreview() {
+    if (!file) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const { data } = await api.uploadFile<ImportPreviewResult>(previewPath, file);
+      setPreview(data);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function commit() {
+    if (!preview) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const data = await api.post<ImportCommitResult>(commitPath(preview.batchId));
+      setResult(data);
+      onCommitted();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Sheet
+      open={open}
+      onClose={() => {
+        onClose();
+        reset();
+      }}
+      title={title}
+    >
+      <div className="stack">
+        <p className="text-sm muted">
+          Download the template, fill in one row per record, then upload it here. Nothing is created until you
+          review the preview below and confirm.
+        </p>
+        <div>
+          <button type="button" className="btn btn-secondary" onClick={() => void downloadTemplate()}>
+            Download template
+          </button>
+        </div>
+
+        {!preview && !result && (
+          <>
+            <Field label="Excel file (.xlsx)">
+              <input type="file" accept=".xlsx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            </Field>
+            {error !== null && <ErrorState error={error} />}
+            <div className="row" style={{ justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  onClose();
+                  reset();
+                }}
+              >
+                Cancel
+              </button>
+              <button type="button" className="btn btn-primary" disabled={!file || busy} onClick={() => void uploadForPreview()}>
+                {busy ? 'Checking…' : 'Preview'}
+              </button>
+            </div>
+          </>
+        )}
+
+        {preview && !result && (
+          <>
+            <div className={`banner ${preview.invalidRows > 0 ? 'banner-warning' : 'banner-success'}`}>
+              {preview.totalRows} row(s) found — {preview.validRows} ready to import
+              {preview.invalidRows > 0 ? `, ${preview.invalidRows} need fixing (won't be imported)` : ''}.
+            </div>
+            <div className="table-wrap" style={{ maxHeight: 360, overflowY: 'auto' }}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Row</th>
+                    {columns.map((c) => (
+                      <th key={c.key}>{c.label}</th>
+                    ))}
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.rows.map((r) => (
+                    <tr key={r.rowNumber}>
+                      <td className="num">{r.rowNumber}</td>
+                      {columns.map((c) => (
+                        <td key={c.key}>{String(r.raw[c.key] ?? '')}</td>
+                      ))}
+                      <td>
+                        {r.status === 'VALID' ? (
+                          <span className="badge badge-success">Ready</span>
+                        ) : (
+                          <span className="badge badge-danger">{r.errors.map((e) => e.message).join(' ')}</span>
+                        )}
+                        {r.warnings.length > 0 && (
+                          <div className="text-xs muted">{r.warnings.map((w) => w.message).join(' ')}</div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {error !== null && <ErrorState error={error} />}
+            <div className="row" style={{ justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  onClose();
+                  reset();
+                }}
+              >
+                Cancel
+              </button>
+              <button type="button" className="btn btn-primary" disabled={busy || preview.validRows === 0} onClick={() => void commit()}>
+                {busy ? 'Importing…' : `Import ${preview.validRows} record(s)`}
+              </button>
+            </div>
+          </>
+        )}
+
+        {result && (
+          <>
+            <div className="banner banner-success">
+              {result.committed} record(s) created
+              {result.failed > 0
+                ? `, ${result.failed} failed at the last moment (someone else created a clashing record first) — re-download the template and retry those.`
+                : '.'}
+            </div>
+            <div className="row" style={{ justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  onClose();
+                  reset();
+                }}
+              >
+                Done
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </Sheet>
   );

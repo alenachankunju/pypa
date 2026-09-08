@@ -5,7 +5,7 @@
  */
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import { AlertDialog, Banner, ErrorState, Field, LoadingState, PageHeader } from '../../components/ui';
+import { AlertDialog, Banner, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 
 interface EventData {
@@ -17,9 +17,16 @@ interface EventData {
   endDate: string | null;
   ageCutoffDate: string;
   timezone: string;
+  status: string;
   freezeMode: boolean;
   freezeReason: string | null;
   auditRetentionMonths: number;
+}
+
+interface ArchivePreview {
+  dryRun: true;
+  willArchive: { members: number; items: number; registrations: number; scores: number };
+  note: string;
 }
 
 interface RetentionStatus {
@@ -51,8 +58,30 @@ export function Settings() {
   const [restoreConfirm, setRestoreConfirm] = useState<Snapshot | null>(null);
   const [retention, setRetention] = useState<RetentionStatus | null>(null);
 
+  // ADM-15-06: event list, creating the next one, and archive-and-reset.
+  const [events, setEvents] = useState<EventData[] | null>(null);
+  const [creating, setCreating] = useState<{
+    name: string;
+    edition: string;
+    startDate: string;
+    endDate: string;
+    ageCutoffDate: string;
+    timezone: string;
+    activate: boolean;
+  } | null>(null);
+  const [createBusy, setCreateBusy] = useState(false);
+  const [activateBusy, setActivateBusy] = useState<string | null>(null);
+  const [archiving, setArchiving] = useState(false);
+  const [archiveReason, setArchiveReason] = useState('');
+  const [archivePreview, setArchivePreview] = useState<ArchivePreview | null>(null);
+  const [archiveBusy, setArchiveBusy] = useState(false);
+
   function load() {
     api.get<EventData | null>('/api/admin/events/active').then((e) => e && setEvent(e)).catch(setError);
+  }
+
+  function loadEvents() {
+    api.get<EventData[]>('/api/admin/events').then(setEvents).catch(() => undefined);
   }
 
   function loadRetention() {
@@ -67,6 +96,7 @@ export function Settings() {
   }
 
   useEffect(load, []);
+  useEffect(loadEvents, []);
   useEffect(loadSnapshots, []);
   useEffect(loadRetention, []);
 
@@ -131,6 +161,92 @@ export function Settings() {
       URL.revokeObjectURL(url);
     } catch (err) {
       setAlertError(err);
+    }
+  }
+
+  function startCreateEvent() {
+    setCreating({
+      name: '',
+      edition: '',
+      startDate: '',
+      endDate: '',
+      ageCutoffDate: '',
+      timezone: 'Asia/Kolkata',
+      activate: false,
+    });
+  }
+
+  async function saveNewEvent() {
+    if (!creating) return;
+    setCreateBusy(true);
+    try {
+      await api.post('/api/admin/events', {
+        name: creating.name,
+        edition: creating.edition || undefined,
+        startDate: creating.startDate || undefined,
+        endDate: creating.endDate || undefined,
+        ageCutoffDate: creating.ageCutoffDate,
+        timezone: creating.timezone || undefined,
+        activate: creating.activate,
+      });
+      setCreating(null);
+      loadEvents();
+      if (creating.activate) load();
+    } catch (err) {
+      setAlertError(err);
+    } finally {
+      setCreateBusy(false);
+    }
+  }
+
+  async function activateEvent(id: string) {
+    setActivateBusy(id);
+    try {
+      await api.post(`/api/admin/events/${id}/activate`, {});
+      loadEvents();
+      load();
+    } catch (err) {
+      setAlertError(err);
+    } finally {
+      setActivateBusy(null);
+    }
+  }
+
+  function startArchive() {
+    setArchiving(true);
+    setArchiveReason('');
+    setArchivePreview(null);
+  }
+
+  async function previewArchive() {
+    if (!event || archiveReason.trim().length < 10) return;
+    setArchiveBusy(true);
+    try {
+      const result = await api.post<ArchivePreview>(`/api/admin/events/${event.id}/archive`, {
+        reason: archiveReason,
+        confirm: false,
+      });
+      setArchivePreview(result);
+    } catch (err) {
+      setAlertError(err);
+    } finally {
+      setArchiveBusy(false);
+    }
+  }
+
+  async function confirmArchive() {
+    if (!event) return;
+    setArchiveBusy(true);
+    try {
+      await api.post(`/api/admin/events/${event.id}/archive`, { reason: archiveReason, confirm: true });
+      setArchiving(false);
+      setArchivePreview(null);
+      loadEvents();
+      load();
+    } catch (err) {
+      setAlertError(err);
+    } finally {
+      setArchiveBusy(false);
     }
   }
 
@@ -217,6 +333,69 @@ export function Settings() {
           </button>
         </div>
       </fieldset>
+
+      {can('MANAGE_SETTINGS') && (
+        <div className="card stack">
+          <div className="row-between">
+            <p className="eyebrow">Events (ADM-15-06)</p>
+            <button type="button" className="btn btn-sm btn-secondary" onClick={startCreateEvent}>
+              + New event
+            </button>
+          </div>
+          <p className="text-sm muted">
+            Only one event is active at a time. Starting a new one doesn't touch the old event's data — it just
+            stops being active. Churches and user accounts are global and carry over automatically.
+          </p>
+          {!events ? (
+            <LoadingState />
+          ) : (
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Edition</th>
+                    <th>Status</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {events.map((e) => (
+                    <tr key={e.id}>
+                      <td>{e.name}</td>
+                      <td>{e.edition ?? '—'}</td>
+                      <td>
+                        <span
+                          className={`badge ${e.status === 'ACTIVE' ? 'badge-success' : e.status === 'ARCHIVED' ? 'badge-neutral' : 'badge-info'}`}
+                        >
+                          {e.status}
+                        </span>
+                      </td>
+                      <td>
+                        {e.status === 'SETUP' && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-secondary"
+                            disabled={activateBusy !== null}
+                            onClick={() => void activateEvent(e.id)}
+                          >
+                            {activateBusy === e.id ? 'Activating…' : 'Activate'}
+                          </button>
+                        )}
+                        {e.status === 'ACTIVE' && (
+                          <button type="button" className="btn btn-sm btn-danger" onClick={startArchive}>
+                            Archive &amp; start fresh
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {can('MANAGE_SETTINGS') && (
         <div className="card stack">
@@ -334,7 +513,127 @@ export function Settings() {
         </div>
       )}
 
+      <Sheet open={creating !== null} onClose={() => setCreating(null)} title="New event">
+        {creating && (
+          <div className="stack">
+            <Field label="Event name" required>
+              <input className="input" value={creating.name} onChange={(e) => setCreating({ ...creating, name: e.target.value })} />
+            </Field>
+            <Field label="Edition / year">
+              <input className="input" value={creating.edition} onChange={(e) => setCreating({ ...creating, edition: e.target.value })} />
+            </Field>
+            <div className="row">
+              <Field label="Start date">
+                <input type="date" className="input" value={creating.startDate} onChange={(e) => setCreating({ ...creating, startDate: e.target.value })} />
+              </Field>
+              <Field label="End date">
+                <input type="date" className="input" value={creating.endDate} onChange={(e) => setCreating({ ...creating, endDate: e.target.value })} />
+              </Field>
+            </div>
+            <Field label="Age cut-off date" required hint="Determines every member's category (FSD ADM-03-03)">
+              <input
+                type="date"
+                className="input"
+                value={creating.ageCutoffDate}
+                onChange={(e) => setCreating({ ...creating, ageCutoffDate: e.target.value })}
+              />
+            </Field>
+            <Field label="Timezone">
+              <input className="input" value={creating.timezone} onChange={(e) => setCreating({ ...creating, timezone: e.target.value })} />
+            </Field>
+            <label className="row" style={{ gap: 'var(--space-2)' }}>
+              <input type="checkbox" checked={creating.activate} onChange={(e) => setCreating({ ...creating, activate: e.target.checked })} />
+              Make this the active event immediately
+            </label>
+            <div className="row" style={{ justifyContent: 'flex-end' }}>
+              <button type="button" className="btn btn-ghost" onClick={() => setCreating(null)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={createBusy || !creating.name || !creating.ageCutoffDate}
+                onClick={() => void saveNewEvent()}
+              >
+                {createBusy ? 'Creating…' : 'Create event'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Sheet>
+
+      <Sheet
+        open={archiving}
+        onClose={() => {
+          setArchiving(false);
+          setArchivePreview(null);
+        }}
+        title="Archive & start fresh"
+      >
+        <div className="stack">
+          <Banner tone="danger" title={`This closes "${event.name}"`}>
+            The event becomes read-only (frozen) and stops being active. Nothing is deleted — churches and user
+            accounts stay available, and the old event's own data (members, items, registrations, scores) is kept
+            exactly as it stood, for the record.
+          </Banner>
+          <Field label="Reason" required hint="At least 10 characters — recorded in the audit log">
+            <textarea className="textarea" value={archiveReason} onChange={(e) => setArchiveReason(e.target.value)} />
+          </Field>
+
+          {archivePreview && (
+            <div className="card stack-sm" style={{ background: 'var(--surface-sunken)' }}>
+              <span className="text-sm strong">This event currently has:</span>
+              <div className="grid grid-4">
+                <StatMini value={archivePreview.willArchive.members} label="Members" />
+                <StatMini value={archivePreview.willArchive.items} label="Items" />
+                <StatMini value={archivePreview.willArchive.registrations} label="Registrations" />
+                <StatMini value={archivePreview.willArchive.scores} label="Scores" />
+              </div>
+              <p className="text-xs muted">{archivePreview.note}</p>
+            </div>
+          )}
+
+          <div className="row" style={{ justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => {
+                setArchiving(false);
+                setArchivePreview(null);
+              }}
+            >
+              Cancel
+            </button>
+            {!archivePreview ? (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={archiveBusy || archiveReason.trim().length < 10}
+                onClick={() => void previewArchive()}
+              >
+                {archiveBusy ? 'Checking…' : 'Preview'}
+              </button>
+            ) : (
+              <button type="button" className="btn btn-danger" disabled={archiveBusy} onClick={() => void confirmArchive()}>
+                {archiveBusy ? 'Archiving…' : 'Confirm archive'}
+              </button>
+            )}
+          </div>
+        </div>
+      </Sheet>
+
       <AlertDialog error={alertError} onClose={() => setAlertError(null)} />
+    </div>
+  );
+}
+
+function StatMini({ value, label }: { value: number; label: string }) {
+  return (
+    <div>
+      <div className="stat-value" style={{ fontSize: 'var(--text-lg)' }}>
+        {value}
+      </div>
+      <div className="stat-label">{label}</div>
     </div>
   );
 }

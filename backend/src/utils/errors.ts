@@ -319,6 +319,11 @@ const UNIQUE_VIOLATIONS: Record<string, () => AppError> = {
       ErrorCode.DUPLICATE_REGISTRATION,
       'This member is already entered in this item, either individually or in another team.',
     ),
+  registrations_item_team_key: () =>
+    new AppError(
+      ErrorCode.DUPLICATE_REGISTRATION,
+      'A team with that name is already registered for this item.',
+    ),
   members_event_chest_key: () =>
     new AppError(ErrorCode.DUPLICATE_CHEST_NUMBER, 'That chest number is already in use.'),
   users_username_key: () =>

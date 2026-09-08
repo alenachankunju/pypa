@@ -15,6 +15,7 @@ import { AuditAction, actorFromRequest, writeAudit } from '../../services/audit.
 import { errors } from '../../utils/errors.js';
 import { auditedDelete, auditedInsert, auditedUpdate, crudContext } from '../../utils/crud.js';
 import { asyncHandler, created, ok } from '../../utils/http.js';
+import { itemImportRoutes } from './itemImport.routes.js';
 
 /** ADM-04-02 field set. */
 const itemSchema = z.object({
@@ -173,6 +174,8 @@ export function itemRoutes(): Router {
       );
     }),
   );
+
+  router.use('/import', itemImportRoutes());
 
   router.get(
     '/:id',

@@ -19,6 +19,7 @@ import {
 } from '../../services/audit.js';
 import { errors } from '../../utils/errors.js';
 import { asyncHandler, created, ok, pageParams, paginated } from '../../utils/http.js';
+import { churchImportRoutes } from './churchImport.routes.js';
 
 /** ADM-02-02 field set. */
 const churchSchema = z.object({
@@ -130,6 +131,8 @@ export function churchRoutes(): Router {
       );
     }),
   );
+
+  router.use('/import', churchImportRoutes());
 
   router.get(
     '/:id',

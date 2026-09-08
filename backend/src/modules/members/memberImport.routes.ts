@@ -23,6 +23,7 @@ import { Capability, requireCapability } from '../../middleware/authorize.js';
 import { validate } from '../../middleware/validate.js';
 import { AuditAction, actorFromRequest, writeAudit } from '../../services/audit.js';
 import { deriveCategory, type CategoryBand } from '../../services/eligibility.js';
+import { cellText, findHeaderRow, styleHeaderRow } from '../../services/importUtil.js';
 import { AppError, errors } from '../../utils/errors.js';
 import { asyncHandler, created, ok } from '../../utils/http.js';
 
@@ -43,13 +44,6 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 3 * 1024 * 1024 },
 });
-
-function styleHeaderRow(row: ExcelJS.Row): void {
-  row.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-  row.eachCell((cell) => {
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3B36AD' } };
-  });
-}
 
 interface RowError {
   field: string;
@@ -196,13 +190,7 @@ export function memberImportRoutes(): Router {
       const sheet = workbook.getWorksheet('Members') ?? workbook.worksheets[0];
       if (!sheet) throw errors.validation('The workbook has no worksheet to read.');
 
-      let headerRowNumber = -1;
-      for (let r = 1; r <= sheet.rowCount; r += 1) {
-        if (cellText(sheet.getRow(r).getCell(1).value) === HEADERS.chestNumber) {
-          headerRowNumber = r;
-          break;
-        }
-      }
+      const headerRowNumber = findHeaderRow(sheet, HEADERS.chestNumber);
       if (headerRowNumber === -1) {
         throw errors.validation(
           'Could not find the header row (expected "Chest Number" in the first column). Use the downloaded template without renaming its columns.',
@@ -546,19 +534,4 @@ export function memberImportRoutes(): Router {
   );
 
   return router;
-}
-
-function cellText(value: ExcelJS.CellValue): string {
-  if (value === null || value === undefined) return '';
-  if (value instanceof Date) return value.toISOString();
-  if (typeof value === 'object' && 'richText' in value) {
-    return (value as { richText: { text: string }[] }).richText.map((t) => t.text).join('');
-  }
-  if (typeof value === 'object' && 'text' in value) {
-    return String((value as { text: unknown }).text ?? '');
-  }
-  if (typeof value === 'object' && 'result' in value) {
-    return String((value as { result: unknown }).result ?? '');
-  }
-  return String(value).trim();
 }

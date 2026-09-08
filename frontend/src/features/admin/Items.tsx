@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError, api } from '../../lib/api';
-import { AlertDialog, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet, StatusBadge } from '../../components/ui';
+import { AlertDialog, BulkImportSheet, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet, StatusBadge } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 
 interface ItemRow {
@@ -67,6 +67,7 @@ export function Items() {
   const [criteria, setCriteria] = useState<Criterion[]>([]);
   const [criteriaSaving, setCriteriaSaving] = useState(false);
   const [criteriaError, setCriteriaError] = useState<unknown>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   function load() {
     api.get<ItemRow[]>('/api/admin/items').then(setRows).catch(setError);
@@ -190,9 +191,14 @@ export function Items() {
         title="Items"
         actions={
           can('MANAGE_ITEMS') && (
-            <button type="button" className="btn btn-primary" onClick={() => setEditing({ type: 'INDIVIDUAL', genderRestriction: 'ANY', isActive: true })}>
-              + Add item
-            </button>
+            <>
+              <button type="button" className="btn btn-secondary" onClick={() => setImportOpen(true)}>
+                Import from Excel
+              </button>
+              <button type="button" className="btn btn-primary" onClick={() => setEditing({ type: 'INDIVIDUAL', genderRestriction: 'ANY', isActive: true })}>
+                + Add item
+              </button>
+            </>
           )
         }
       />
@@ -531,6 +537,22 @@ export function Items() {
         busy={deleteBusy}
         onConfirm={() => void confirmDeleteItem()}
         onCancel={() => setDeleting(null)}
+      />
+
+      <BulkImportSheet
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        title="Bulk import items"
+        templatePath="/api/admin/items/import/template"
+        previewPath="/api/admin/items/import/preview"
+        commitPath={(batchId) => `/api/admin/items/import/${batchId}/commit`}
+        columns={[
+          { key: 'name', label: 'Name' },
+          { key: 'code', label: 'Code' },
+          { key: 'category', label: 'Category' },
+          { key: 'type', label: 'Type' },
+        ]}
+        onCommitted={load}
       />
 
       <AlertDialog error={alertError} onClose={() => setAlertError(null)} />

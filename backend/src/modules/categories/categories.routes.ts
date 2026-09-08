@@ -16,6 +16,7 @@ import { checkCategoryBands, type CategoryBand } from '../../services/eligibilit
 import { errors } from '../../utils/errors.js';
 import { auditedDelete, auditedInsert, auditedUpdate, crudContext } from '../../utils/crud.js';
 import { asyncHandler, created, ok } from '../../utils/http.js';
+import { categoryImportRoutes } from './categoryImport.routes.js';
 
 /** ADM-03-02 field set. */
 const categorySchema = z.object({
@@ -139,6 +140,8 @@ export function categoryRoutes(): Router {
       return created(res, row, { bandWarnings: await bandWarningsFor(req.eventId!) });
     }),
   );
+
+  router.use('/import', categoryImportRoutes());
 
   /**
    * FSD 12.2: "A member's date of birth is corrected, changing their category —
