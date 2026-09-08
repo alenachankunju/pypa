@@ -11,6 +11,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { formatAggregate, tiebreakLabel } from '../../lib/format';
 import {
+  AlertDialog,
   Banner,
   ConfirmDialog,
   ErrorState,
@@ -53,6 +54,7 @@ export function ItemResults() {
   const [data, setData] = useState<ItemResultResponse | null>(null);
   const [unpublishedItemCount, setUnpublishedItemCount] = useState<number | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const [alertError, setAlertError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState<'publish' | 'unpublish' | 'provisional' | null>(null);
   const [reason, setReason] = useState('');
@@ -81,7 +83,7 @@ export function ItemResults() {
       setReason('');
       load();
     } catch (err) {
-      setError(err);
+      setAlertError(err);
     } finally {
       setBusy(false);
     }
@@ -94,7 +96,7 @@ export function ItemResults() {
     }));
 
     if (new Set(decisions.map((d) => d.assignedPosition)).size !== decisions.length) {
-      setError(new Error('Each performance in the tie must be given a distinct position, unless declaring a shared position.'));
+      setAlertError(new Error('Each performance in the tie must be given a distinct position, unless declaring a shared position.'));
       return;
     }
 
@@ -299,6 +301,8 @@ export function ItemResults() {
       <button type="button" className="btn btn-ghost" onClick={() => navigate(-1)}>
         ← Back to results
       </button>
+
+      <AlertDialog error={alertError} onClose={() => setAlertError(null)} />
     </div>
   );
 }

@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type ApiMeta } from '../../lib/api';
-import { ErrorState, LoadingState, PageHeader, StatusBadge } from '../../components/ui';
+import { AlertDialog, ErrorState, LoadingState, PageHeader, StatusBadge } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 
 interface ItemReadiness {
@@ -25,6 +25,7 @@ export function ResultsIndex() {
   const [rows, setRows] = useState<ItemReadiness[] | null>(null);
   const [meta, setMeta] = useState<ApiMeta>({});
   const [error, setError] = useState<unknown>(null);
+  const [alertError, setAlertError] = useState<unknown>(null);
   const [confirm, setConfirm] = useState<{ itemName: string }[] | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -41,8 +42,12 @@ export function ResultsIndex() {
   useEffect(load, []);
 
   async function previewPublishAll() {
-    const result = await api.post<{ published: { itemName: string }[] }>('/api/admin/results/publish-all', { dryRun: true });
-    setConfirm(result.published);
+    try {
+      const result = await api.post<{ published: { itemName: string }[] }>('/api/admin/results/publish-all', { dryRun: true });
+      setConfirm(result.published);
+    } catch (err) {
+      setAlertError(err);
+    }
   }
 
   async function confirmPublishAll() {
@@ -52,7 +57,7 @@ export function ResultsIndex() {
       setConfirm(null);
       load();
     } catch (err) {
-      setError(err);
+      setAlertError(err);
     } finally {
       setBusy(false);
     }
@@ -64,6 +69,7 @@ export function ResultsIndex() {
   return (
     <div className="stack-lg">
       <PageHeader
+        icon="☰"
         title="Item results"
         subtitle={
           typeof meta.unpublishedItemCount === 'number'
@@ -135,6 +141,8 @@ export function ResultsIndex() {
           </div>
         </div>
       )}
+
+      <AlertDialog error={alertError} onClose={() => setAlertError(null)} />
     </div>
   );
 }

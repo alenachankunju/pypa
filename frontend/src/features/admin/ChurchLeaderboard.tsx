@@ -47,6 +47,7 @@ export function ChurchLeaderboard() {
   return (
     <div className="stack-lg">
       <PageHeader
+        icon="🏆"
         title="Church leaderboard"
         subtitle={
           typeof meta.unpublishedItemCount === 'number'

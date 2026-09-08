@@ -5,7 +5,7 @@
  */
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import { ErrorState, Field, LoadingState, PageHeader } from '../../components/ui';
+import { AlertDialog, ErrorState, Field, LoadingState, PageHeader } from '../../components/ui';
 
 interface ExceptionsReport {
   revokedScores: { id: string; mark: number; item_name: string; judge_name: string; revoked_reason: string }[];
@@ -37,6 +37,7 @@ async function downloadReport(path: string, format: 'pdf' | 'xlsx' | undefined, 
 export function Reports() {
   const [exceptions, setExceptions] = useState<ExceptionsReport | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const [alertError, setAlertError] = useState<unknown>(null);
   const [items, setItems] = useState<ItemOption[]>([]);
   const [selectedItemId, setSelectedItemId] = useState('');
   const [churches, setChurches] = useState<ChurchOption[]>([]);
@@ -66,7 +67,7 @@ export function Reports() {
     try {
       await downloadReport(path, format, filename);
     } catch (err) {
-      setError(err);
+      setAlertError(err);
     } finally {
       setBusy(null);
     }
@@ -76,7 +77,7 @@ export function Reports() {
 
   return (
     <div className="stack-lg">
-      <PageHeader title="Reports" subtitle="Export result sheets, leaderboards and exception reports" />
+      <PageHeader icon="⎙" title="Reports" subtitle="Export result sheets, leaderboards and exception reports" />
 
       <div className="card stack">
         <p className="eyebrow">Per-item reports</p>
@@ -252,6 +253,8 @@ export function Reports() {
           )}
         </div>
       </div>
+
+      <AlertDialog error={alertError} onClose={() => setAlertError(null)} />
     </div>
   );
 }

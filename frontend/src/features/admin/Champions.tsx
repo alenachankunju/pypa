@@ -50,6 +50,7 @@ export function Champions() {
   return (
     <div className="stack-lg">
       <PageHeader
+        icon="★"
         title="Champions"
         subtitle={
           unpublishedItemCount !== null && unpublishedItemCount > 0
