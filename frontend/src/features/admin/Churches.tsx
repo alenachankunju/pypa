@@ -2,8 +2,10 @@
  * Screen A2 — Church list / form (FSD 5.2).
  */
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ApiError, api } from '../../lib/api';
 import { AlertDialog, BulkImportSheet, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
+import { Icon } from '../../components/Icon';
 import { useAuth } from '../../lib/auth';
 
 interface Church {
@@ -23,8 +25,11 @@ interface Church {
 
 export function Churches() {
   const { can } = useAuth();
+  const [searchParams] = useSearchParams();
   const [rows, setRows] = useState<Church[] | null>(null);
-  const [search, setSearch] = useState('');
+  // Seeded from ?q= when arriving via the header's global search, so the
+  // result the admin clicked is what they land on, not an empty list.
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
   const [activeFilter, setActiveFilter] = useState('true');
   const [error, setError] = useState<unknown>(null);
   const [alertError, setAlertError] = useState<unknown>(null);
@@ -127,7 +132,7 @@ export function Churches() {
   return (
     <div className="stack-lg">
       <PageHeader
-        icon="⛪"
+        icon={<Icon name="building" />}
         title="Churches"
         subtitle="Global master data, reused across events"
         actions={
@@ -207,7 +212,7 @@ export function Churches() {
                             Edit
                           </button>
                           {c.isActive ? (
-                            <button type="button" className="btn btn-sm btn-danger" onClick={() => setDeactivating(c)}>
+                            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setDeactivating(c)}>
                               Deactivate
                             </button>
                           ) : (

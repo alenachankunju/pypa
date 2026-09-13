@@ -8,6 +8,7 @@
 import { useNavigate } from 'react-router-dom';
 import { storageUrl } from '../../lib/realtime';
 import { Avatar, EmptyState, ErrorState, LoadingState } from '../../components/ui';
+import { Icon } from '../../components/Icon';
 import { useJudgeSession } from './JudgeSession';
 import { SessionPicker } from './SessionPicker';
 
@@ -32,7 +33,7 @@ export function NowOnStage() {
   if (!current || useManualSearch) {
     return (
       <EmptyState
-        icon="▶"
+        icon={<Icon name="play" />}
         title="No participant on stage"
         body="The coordinator hasn't set a current performance yet. You can still find a participant by chest number."
         action={
@@ -53,7 +54,7 @@ export function NowOnStage() {
         Participant {current.progress.position} of {current.progress.total} · {current.itemName}
       </p>
 
-      <div className="card stack" style={{ alignItems: 'center', textAlign: 'center' }}>
+      <div className="card stage-card stack" style={{ alignItems: 'center', textAlign: 'center', padding: 'var(--space-6)' }}>
         {photo ? (
           <img
             src={photo}

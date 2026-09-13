@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react';
 import { ApiError, api } from '../../lib/api';
 import { AlertDialog, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
+import { Icon } from '../../components/Icon';
 import { useAuth } from '../../lib/auth';
 
 interface ItemOption {
@@ -197,7 +198,7 @@ export function Registrations() {
   return (
     <div className="stack-lg">
       <PageHeader
-        icon="⊞"
+        icon={<Icon name="user-plus" />}
         title="Registrations"
         subtitle="Entry list per item"
         actions={

@@ -7,11 +7,13 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
 import { Capability } from '../../lib/auth';
 import { Sheet } from '../../components/ui';
+import { Icon, type IconName } from '../../components/Icon';
+import { GlobalSearch } from '../../components/GlobalSearch';
 
 interface NavItem {
   to: string;
   label: string;
-  icon: string;
+  icon: IconName;
   capability?: string;
   end?: boolean;
 }
@@ -24,50 +26,50 @@ interface NavGroup {
 const GROUPS: NavGroup[] = [
   {
     label: 'Overview',
-    items: [{ to: '/admin', label: 'Dashboard', icon: '◧', end: true }],
+    items: [{ to: '/admin', label: 'Dashboard', icon: 'home', end: true }],
   },
   {
     label: 'Live',
-    items: [{ to: '/admin/live', label: 'Live console', icon: '●', capability: Capability.VIEW_SCORE_PROGRESS }],
+    items: [{ to: '/admin/live', label: 'Live console', icon: 'activity', capability: Capability.VIEW_SCORE_PROGRESS }],
   },
   {
     label: 'Data',
     items: [
-      { to: '/admin/churches', label: 'Churches', icon: '⛪', capability: Capability.MANAGE_CHURCHES },
-      { to: '/admin/categories', label: 'Categories', icon: '▤', capability: Capability.MANAGE_CATEGORIES },
-      { to: '/admin/items', label: 'Items', icon: '♪', capability: Capability.MANAGE_ITEMS },
-      { to: '/admin/members', label: 'Members', icon: '☺', capability: Capability.MANAGE_MEMBERS },
-      { to: '/admin/registrations', label: 'Registrations', icon: '⊞', capability: Capability.MANAGE_REGISTRATIONS },
+      { to: '/admin/churches', label: 'Churches', icon: 'building', capability: Capability.MANAGE_CHURCHES },
+      { to: '/admin/categories', label: 'Categories', icon: 'grid', capability: Capability.MANAGE_CATEGORIES },
+      { to: '/admin/items', label: 'Items', icon: 'star', capability: Capability.MANAGE_ITEMS },
+      { to: '/admin/members', label: 'Members', icon: 'users', capability: Capability.MANAGE_MEMBERS },
+      { to: '/admin/registrations', label: 'Registrations', icon: 'user-plus', capability: Capability.MANAGE_REGISTRATIONS },
     ],
   },
   {
     label: 'Results',
     items: [
-      { to: '/admin/results', label: 'Item results', icon: '☰', capability: Capability.VIEW_PROVISIONAL_RESULTS },
-      { to: '/admin/leaderboard', label: 'Church leaderboard', icon: '🏆', capability: Capability.VIEW_PROVISIONAL_RESULTS },
-      { to: '/admin/champions', label: 'Champions', icon: '★', capability: Capability.VIEW_PROVISIONAL_RESULTS },
+      { to: '/admin/results', label: 'Item results', icon: 'list', capability: Capability.VIEW_PROVISIONAL_RESULTS },
+      { to: '/admin/leaderboard', label: 'Church leaderboard', icon: 'bar-chart', capability: Capability.VIEW_PROVISIONAL_RESULTS },
+      { to: '/admin/champions', label: 'Champions', icon: 'medal', capability: Capability.VIEW_PROVISIONAL_RESULTS },
     ],
   },
   {
     label: 'More',
     items: [
-      { to: '/admin/judges', label: 'Users', icon: '⚖', capability: Capability.MANAGE_JUDGE_ACCOUNTS },
-      { to: '/admin/panels', label: 'Panels', icon: '⚑', capability: Capability.MANAGE_PANELS },
-      { to: '/admin/sessions', label: 'Sessions', icon: '⏱', capability: Capability.MANAGE_SESSIONS },
-      { to: '/admin/config', label: 'Scoring config', icon: '⚙', capability: Capability.CONFIGURE_SCORING },
-      { to: '/admin/reports', label: 'Reports', icon: '⎙', capability: Capability.EXPORT_REPORTS },
-      { to: '/admin/audit', label: 'Audit log', icon: '≡', capability: Capability.VIEW_AUDIT_LOG },
-      { to: '/admin/settings', label: 'Settings', icon: '⚒', capability: Capability.MANAGE_SETTINGS },
+      { to: '/admin/judges', label: 'Users', icon: 'user', capability: Capability.MANAGE_JUDGE_ACCOUNTS },
+      { to: '/admin/panels', label: 'Panels', icon: 'flag', capability: Capability.MANAGE_PANELS },
+      { to: '/admin/sessions', label: 'Sessions', icon: 'clock', capability: Capability.MANAGE_SESSIONS },
+      { to: '/admin/config', label: 'Scoring config', icon: 'sliders', capability: Capability.CONFIGURE_SCORING },
+      { to: '/admin/reports', label: 'Reports', icon: 'download', capability: Capability.EXPORT_REPORTS },
+      { to: '/admin/audit', label: 'Audit log', icon: 'list', capability: Capability.VIEW_AUDIT_LOG },
+      { to: '/admin/settings', label: 'Settings', icon: 'target', capability: Capability.MANAGE_SETTINGS },
     ],
   },
 ];
 
 /** Five primary items for the mobile bottom bar; the rest live behind More. */
 const MOBILE_PRIMARY: NavItem[] = [
-  { to: '/admin', label: 'Home', icon: '◧', end: true },
-  { to: '/admin/live', label: 'Live', icon: '●', capability: Capability.VIEW_SCORE_PROGRESS },
-  { to: '/admin/members', label: 'Members', icon: '☺', capability: Capability.MANAGE_MEMBERS },
-  { to: '/admin/results', label: 'Results', icon: '☰', capability: Capability.VIEW_PROVISIONAL_RESULTS },
+  { to: '/admin', label: 'Home', icon: 'home', end: true },
+  { to: '/admin/live', label: 'Live', icon: 'activity', capability: Capability.VIEW_SCORE_PROGRESS },
+  { to: '/admin/members', label: 'Members', icon: 'users', capability: Capability.MANAGE_MEMBERS },
+  { to: '/admin/results', label: 'Results', icon: 'list', capability: Capability.VIEW_PROVISIONAL_RESULTS },
 ];
 
 export function AdminShell() {
@@ -105,7 +107,7 @@ export function AdminShell() {
             <div className="nav-group-label">{group.label}</div>
             {group.items.map((item) => (
               <NavLink key={item.to} to={item.to} end={item.end} className="nav-link" onClick={bumpNavKey}>
-                <span aria-hidden="true">{item.icon}</span>
+                <Icon name={item.icon} size={18} />
                 {item.label}
               </NavLink>
             ))}
@@ -114,14 +116,15 @@ export function AdminShell() {
 
         <div className="nav-group">
           <button type="button" className="nav-link" style={{ width: '100%' }} onClick={() => void logout()}>
-            <span aria-hidden="true">⎋</span>
+            <Icon name="log-out" size={18} />
             Sign out
           </button>
         </div>
       </aside>
 
       <div className="admin-main">
-        <header className="app-header no-print">
+        <header className="app-header is-glass no-print">
+          <GlobalSearch />
           <div className="header-context">
             <strong>{user?.fullName}</strong>
             <span>{user?.role.replace('_', ' ')}</span>
@@ -132,18 +135,18 @@ export function AdminShell() {
         </div>
       </div>
 
-      <nav className="bottom-nav admin-nav no-print" aria-label="Admin navigation">
+      <nav className="bottom-nav admin-nav is-glass no-print" aria-label="Admin navigation">
         {MOBILE_PRIMARY.filter((item) => !item.capability || can(item.capability)).map((item) => (
           <NavLink key={item.to} to={item.to} end={item.end} className="bottom-nav-item" onClick={bumpNavKey}>
-            <span className="bottom-nav-icon" aria-hidden="true">
-              {item.icon}
+            <span className="bottom-nav-icon">
+              <Icon name={item.icon} />
             </span>
             {item.label}
           </NavLink>
         ))}
         <button type="button" className="bottom-nav-item" onClick={() => setMoreOpen(true)}>
-          <span className="bottom-nav-icon" aria-hidden="true">
-            ⋯
+          <span className="bottom-nav-icon">
+            <Icon name="more-horizontal" />
           </span>
           More
         </button>
@@ -165,7 +168,7 @@ export function AdminShell() {
                     bumpNavKey();
                   }}
                 >
-                  <span aria-hidden="true">{item.icon}</span>
+                  <Icon name={item.icon} size={18} />
                   {item.label}
                 </NavLink>
               ))}

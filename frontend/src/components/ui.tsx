@@ -8,6 +8,7 @@
  */
 import { useState, type ReactNode } from 'react';
 import { ApiError, api } from '../lib/api';
+import { Icon, type IconName } from './Icon';
 
 // --- States ----------------------------------------------------------------
 
@@ -31,21 +32,20 @@ export function SkeletonRows({ rows = 4, height = 56 }: { rows?: number; height?
 }
 
 export function EmptyState({
-  icon = '∅',
+  icon = <Icon name="empty" />,
   title,
   body,
   action,
 }: {
-  icon?: string;
+  /** An IconName-driven <Icon /> (redesigned screens) or a legacy glyph string. */
+  icon?: ReactNode;
   title: string;
   body?: string;
   action?: ReactNode;
 }) {
   return (
     <div className="state">
-      <div className="state-icon" aria-hidden="true">
-        {icon}
-      </div>
+      <div className="state-icon">{icon}</div>
       <p className="state-title">{title}</p>
       {body && <p className="state-body">{body}</p>}
       {action}
@@ -78,8 +78,8 @@ export function ErrorState({
   if (apiError?.isOffline) {
     return (
       <div className="state">
-        <div className="state-icon" aria-hidden="true">
-          ⚡
+        <div className="state-icon">
+          <Icon name="zap" />
         </div>
         <p className="state-title">No connection</p>
         <p className="state-body">
@@ -97,8 +97,8 @@ export function ErrorState({
 
   return (
     <div className="state" role="alert">
-      <div className="state-icon" aria-hidden="true">
-        ⚠
+      <div className="state-icon">
+        <Icon name="alert-triangle" />
       </div>
       <p className="state-title">{title}</p>
       <p className="state-body">{message}</p>
@@ -142,8 +142,8 @@ export function AlertDialog({
     <Sheet open={error !== null} onClose={onClose} title={title}>
       <div className="stack">
         <div className="banner banner-danger">
-          <span className="banner-icon" aria-hidden="true">
-            ⚠
+          <span className="banner-icon">
+            <Icon name="alert-circle" />
           </span>
           <div className="grow">{message}</div>
         </div>
@@ -173,12 +173,18 @@ export function Banner({
   children?: ReactNode;
   action?: ReactNode;
 }) {
-  const icon = { info: 'ℹ', warning: '⚠', danger: '⚠', success: '✓' }[tone];
+  const iconByTone: Record<'info' | 'warning' | 'danger' | 'success', IconName> = {
+    info: 'info',
+    warning: 'alert-triangle',
+    danger: 'alert-circle',
+    success: 'check-circle',
+  };
+  const icon = iconByTone[tone];
 
   return (
     <div className={`banner banner-${tone}`} role={tone === 'danger' ? 'alert' : undefined}>
-      <span className="banner-icon" aria-hidden="true">
-        {icon}
+      <span className="banner-icon">
+        <Icon name={icon} />
       </span>
       <div className="grow">
         {title && <div className="banner-title">{title}</div>}
@@ -359,8 +365,8 @@ export function ConfirmDialog({
     <Sheet open={open} onClose={onCancel} title={title} dismissable={!busy}>
       <div className="stack">
         <div className="banner banner-warning">
-          <span className="banner-icon" aria-hidden="true">
-            ⚠
+          <span className="banner-icon">
+            <Icon name="alert-triangle" />
           </span>
           <div className="grow">{consequence}</div>
         </div>
@@ -641,18 +647,39 @@ export function BulkImportSheet({
 
 // --- Misc -------------------------------------------------------------------
 
+/** Fixed per-category icon hues — a StatCard always renders the same color
+ * for the same kind of thing, wherever it appears, rather than a color
+ * chosen per-screen. Never the only cue: every card still carries its text
+ * label and value. */
+export type StatCardColor = 'blue' | 'indigo' | 'amber' | 'green' | 'gold' | 'red';
+
+const STAT_CARD_COLOR_VAR: Record<StatCardColor, string> = {
+  blue: 'var(--blue-600)',
+  indigo: 'var(--indigo-600)',
+  amber: 'var(--amber-600)',
+  green: 'var(--green-600)',
+  gold: 'var(--gold-600)',
+  red: 'var(--red-600)',
+};
+
 export function StatCard({
   value,
   label,
   tone,
   hint,
+  icon,
+  color,
 }: {
   value: ReactNode;
   label: string;
   tone?: 'default' | 'warning' | 'danger' | 'success';
   hint?: string;
+  icon?: IconName;
+  /** One of the fixed category hues for the icon. Independent of `tone`,
+   * which colors the value text for a status (e.g. a warning count). */
+  color?: StatCardColor;
 }) {
-  const color =
+  const valueColor =
     tone === 'warning'
       ? 'var(--warning-text)'
       : tone === 'danger'
@@ -663,7 +690,15 @@ export function StatCard({
 
   return (
     <div className="stat-card">
-      <div className="stat-value" style={color ? { color } : undefined}>
+      {icon && (
+        <div
+          className="stat-card-icon"
+          style={{ color: color ? STAT_CARD_COLOR_VAR[color] : 'var(--text-muted)' }}
+        >
+          <Icon name={icon} />
+        </div>
+      )}
+      <div className="stat-value" style={valueColor ? { color: valueColor } : undefined}>
         {value}
       </div>
       <div className="stat-label">{label}</div>
@@ -714,7 +749,8 @@ export function PageHeader({
   subtitle,
   actions,
 }: {
-  icon?: string;
+  /** A glyph string (legacy screens) or an <Icon /> element (redesigned ones). */
+  icon?: ReactNode;
   title: string;
   subtitle?: ReactNode;
   actions?: ReactNode;

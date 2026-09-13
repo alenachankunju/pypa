@@ -142,7 +142,7 @@ export function Search() {
             <button
               key={r.registrationId}
               type="button"
-              className="card row"
+              className="card is-interactive row"
               style={{ width: '100%', textAlign: 'left' }}
               onClick={() => navigate(`/judge/member/${r.memberId}`)}
             >

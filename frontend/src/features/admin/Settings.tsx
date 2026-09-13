@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { AlertDialog, Banner, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
+import { Icon } from '../../components/Icon';
 import { useAuth } from '../../lib/auth';
 
 interface EventData {
@@ -270,7 +271,7 @@ export function Settings() {
 
   return (
     <div className="stack-lg">
-      <PageHeader icon="⚒" title="Settings" />
+      <PageHeader icon={<Icon name="target" />} title="Settings" />
 
       {event.freezeMode && (
         <Banner tone="danger" title="Event is frozen">

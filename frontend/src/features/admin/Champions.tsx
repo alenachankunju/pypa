@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { ErrorState, LoadingState, PageHeader } from '../../components/ui';
+import { Icon } from '../../components/Icon';
 
 interface MemberStanding {
   rank: number;
@@ -50,7 +51,7 @@ export function Champions() {
   return (
     <div className="stack-lg">
       <PageHeader
-        icon="★"
+        icon={<Icon name="medal" />}
         title="Champions"
         subtitle={
           unpublishedItemCount !== null && unpublishedItemCount > 0

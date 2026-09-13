@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { formatDateTime } from '../../lib/format';
 import { ErrorState, LoadingState, PageHeader } from '../../components/ui';
+import { Icon } from '../../components/Icon';
 
 interface AuditRow {
   id: number;
@@ -63,7 +64,7 @@ export function AuditLog() {
 
   return (
     <div className="stack-lg">
-      <PageHeader icon="≡" title="Audit log" subtitle="Append-only — cannot be edited or deleted" />
+      <PageHeader icon={<Icon name="list" />} title="Audit log" subtitle="Append-only — cannot be edited or deleted" />
 
       <div className="row-wrap">
         <input className="input" placeholder="Search actor, reason or action" value={search} onChange={(e) => setSearch(e.target.value)} style={{ maxWidth: 280 }} />

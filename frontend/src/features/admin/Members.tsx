@@ -14,9 +14,11 @@
  * active status; sort by chest number or name.
  */
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ApiError, api } from '../../lib/api';
 import { storageUrl } from '../../lib/realtime';
 import { AlertDialog, Avatar, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
+import { Icon } from '../../components/Icon';
 import { useAuth } from '../../lib/auth';
 
 interface MemberRow {
@@ -75,8 +77,10 @@ interface ImportCommitResult {
 
 export function Members() {
   const { can } = useAuth();
+  const [searchParams] = useSearchParams();
   const [rows, setRows] = useState<MemberRow[] | null>(null);
-  const [search, setSearch] = useState('');
+  // Seeded from ?q= when arriving via the header's global search.
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
   const [activeFilter, setActiveFilter] = useState('true');
   const [error, setError] = useState<unknown>(null);
   const [alertError, setAlertError] = useState<unknown>(null);
@@ -308,7 +312,7 @@ export function Members() {
   return (
     <div className="stack-lg">
       <PageHeader
-        icon="☺"
+        icon={<Icon name="users" />}
         title="Members"
         actions={
           can('MANAGE_MEMBERS') && (
@@ -387,7 +391,7 @@ export function Members() {
                             Edit
                           </button>
                           {m.isActive ? (
-                            <button type="button" className="btn btn-sm btn-danger" onClick={() => setDeactivating(m)}>
+                            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setDeactivating(m)}>
                               Deactivate
                             </button>
                           ) : (

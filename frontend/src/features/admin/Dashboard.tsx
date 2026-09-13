@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { relativeTime } from '../../lib/format';
 import { ErrorState, LoadingState, PageHeader, StatCard } from '../../components/ui';
+import { Icon } from '../../components/Icon';
 import { useAuth } from '../../lib/auth';
 
 function greeting(): string {
@@ -81,15 +82,23 @@ export function Dashboard() {
 
   return (
     <div className="stack-lg">
-      <PageHeader
-        title={`${greeting()}${user?.fullName ? `, ${user.fullName.split(' ')[0]}` : ''}`}
-        subtitle="Here's where the event stands right now."
-      />
+      <div className="hero-panel">
+        <PageHeader
+          title={`${greeting()}${user?.fullName ? `, ${user.fullName.split(' ')[0]}` : ''}`}
+          subtitle="Here's where the event stands right now."
+          actions={
+            <Link to="/admin/reports" className="btn btn-secondary">
+              <Icon name="download" />
+              Export
+            </Link>
+          }
+        />
+      </div>
 
       {checklist?.nextStep && (
         <div className="banner banner-info">
-          <span className="banner-icon" aria-hidden="true">
-            ℹ
+          <span className="banner-icon">
+            <Icon name="info" />
           </span>
           <div>
             <div className="banner-title">Next setup step: {checklist.nextStep.action}</div>
@@ -99,17 +108,25 @@ export function Dashboard() {
       )}
 
       <div className="grid grid-4">
-        <StatCard value={data.counts.churches} label="Churches" />
-        <StatCard value={data.counts.members} label="Members" />
-        <StatCard value={data.counts.items} label="Items" />
-        <StatCard value={data.counts.registrations} label="Registrations" />
-        <StatCard value={data.counts.judges} label="Judges" />
-        <StatCard value={data.counts.panels} label="Panels" />
-        <StatCard value={data.counts.openSessions} label="Open sessions" tone={data.counts.openSessions > 0 ? 'success' : 'default'} />
+        <StatCard value={data.counts.churches} label="Churches" icon="building" color="blue" />
+        <StatCard value={data.counts.members} label="Members" icon="users" color="indigo" />
+        <StatCard value={data.counts.items} label="Items" icon="star" color="amber" />
+        <StatCard value={data.counts.registrations} label="Registrations" icon="user-plus" color="green" />
+        <StatCard value={data.counts.judges} label="Judges" icon="user" color="gold" />
+        <StatCard value={data.counts.panels} label="Panels" icon="flag" color="gold" />
+        <StatCard
+          value={data.counts.openSessions}
+          label="Open sessions"
+          icon="clock"
+          color="green"
+          tone={data.counts.openSessions > 0 ? 'success' : 'default'}
+        />
         {/* ADM-12-09: unpublished item count, so nobody announces early. */}
         <StatCard
           value={data.results.unpublished}
           label="Unpublished items"
+          icon="alert-triangle"
+          color="red"
           tone={data.results.unpublished > 0 ? 'warning' : 'success'}
           hint={data.results.withUnresolvedTies > 0 ? `${data.results.withUnresolvedTies} with unresolved ties` : undefined}
         />

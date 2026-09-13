@@ -18,6 +18,7 @@ import {
   PageHeader,
   Sheet,
 } from '../../components/ui';
+import { Icon } from '../../components/Icon';
 import { Capability, useAuth } from '../../lib/auth';
 
 const ROLES = ['SUPER_ADMIN', 'ADMIN', 'JUDGE', 'COORDINATOR'] as const;
@@ -208,7 +209,7 @@ export function Users() {
   return (
     <div className="stack-lg">
       <PageHeader
-        icon="⚖"
+        icon={<Icon name="user" />}
         title="Users"
         subtitle="Every account in the system — judges, coordinators and administrators"
         actions={
@@ -313,7 +314,7 @@ export function Users() {
                             </button>
                           )}
                           {u.isActive ? (
-                            <button type="button" className="btn btn-sm btn-danger" onClick={() => setDeactivating(u)}>
+                            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setDeactivating(u)}>
                               Deactivate
                             </button>
                           ) : (

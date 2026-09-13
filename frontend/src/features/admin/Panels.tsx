@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 import { AlertDialog, Banner, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
+import { Icon } from '../../components/Icon';
 import { useAuth } from '../../lib/auth';
 
 interface Judge {
@@ -129,7 +130,7 @@ export function Panels() {
   return (
     <div className="stack-lg">
       <PageHeader
-        icon="⚑"
+        icon={<Icon name="flag" />}
         title="Panels"
         actions={
           can('MANAGE_PANELS') && (

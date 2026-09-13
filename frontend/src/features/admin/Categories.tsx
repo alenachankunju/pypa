@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { ApiError, api } from '../../lib/api';
 import { AlertDialog, BulkImportSheet, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet } from '../../components/ui';
+import { Icon } from '../../components/Icon';
 import { useAuth } from '../../lib/auth';
 
 interface Category {
@@ -100,7 +101,7 @@ export function Categories() {
   return (
     <div className="stack-lg">
       <PageHeader
-        icon="▤"
+        icon={<Icon name="grid" />}
         title="Categories"
         subtitle="Age and eligibility bands for this event"
         actions={

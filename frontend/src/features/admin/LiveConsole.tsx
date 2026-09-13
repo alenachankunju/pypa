@@ -47,7 +47,7 @@ interface ProgressResponse {
   session: SessionSummary;
   current: ProgressPerformance | null;
   performances: ProgressPerformance[];
-  outstanding: { performanceId: string; itemName: string; participantName: string; missingJudges: { fullName: string }[] }[];
+  outstanding: { performanceId: string; itemName: string; participantName: string; missingJudges: string[] }[];
   itemProgress: ItemProgress[];
   totals: { performances: number; complete: number; absent: number; void: number; pending: number };
   canSeeMarks: boolean;
@@ -331,7 +331,7 @@ export function LiveConsole() {
                         <tr key={row.performanceId}>
                           <td>{row.itemName}</td>
                           <td>{row.participantName}</td>
-                          <td>{row.missingJudges.map((j) => j.fullName).join(', ')}</td>
+                          <td>{row.missingJudges.join(', ')}</td>
                         </tr>
                       ))}
                     </tbody>

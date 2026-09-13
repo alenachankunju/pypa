@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { api, type ApiMeta } from '../../lib/api';
 import { ErrorState, LoadingState, PageHeader } from '../../components/ui';
+import { Icon } from '../../components/Icon';
 
 interface ChurchStanding {
   rank: number;
@@ -47,7 +48,7 @@ export function ChurchLeaderboard() {
   return (
     <div className="stack-lg">
       <PageHeader
-        icon="🏆"
+        icon={<Icon name="bar-chart" />}
         title="Church leaderboard"
         subtitle={
           typeof meta.unpublishedItemCount === 'number'

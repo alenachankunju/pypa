@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { AlertDialog, ErrorState, Field, LoadingState, PageHeader } from '../../components/ui';
+import { Icon } from '../../components/Icon';
 
 interface ExceptionsReport {
   revokedScores: { id: string; mark: number; item_name: string; judge_name: string; revoked_reason: string }[];
@@ -90,7 +91,7 @@ export function Reports() {
 
   return (
     <div className="stack-lg">
-      <PageHeader icon="⎙" title="Reports" subtitle="Export result sheets, leaderboards and exception reports" />
+      <PageHeader icon={<Icon name="download" />} title="Reports" subtitle="Export result sheets, leaderboards and exception reports" />
 
       <div className="card stack">
         <p className="eyebrow">Per-item reports</p>

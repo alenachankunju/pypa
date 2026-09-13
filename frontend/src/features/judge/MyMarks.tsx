@@ -166,7 +166,7 @@ export function MyMarks() {
             <button
               key={row.scoreId}
               type="button"
-              className="card row-between"
+              className="card is-interactive row-between"
               style={{ width: '100%', textAlign: 'left', cursor: row.canReEnter ? 'pointer' : 'default' }}
               onClick={() => row.canReEnter && navigate(`/judge/score/${row.performanceId}`)}
               disabled={!row.canReEnter && row.revoked}

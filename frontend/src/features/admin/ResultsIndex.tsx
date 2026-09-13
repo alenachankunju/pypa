@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type ApiMeta } from '../../lib/api';
 import { AlertDialog, ErrorState, LoadingState, PageHeader, StatusBadge } from '../../components/ui';
+import { Icon } from '../../components/Icon';
 import { useAuth } from '../../lib/auth';
 
 interface ItemReadiness {
@@ -69,7 +70,7 @@ export function ResultsIndex() {
   return (
     <div className="stack-lg">
       <PageHeader
-        icon="☰"
+        icon={<Icon name="list" />}
         title="Item results"
         subtitle={
           typeof meta.unpublishedItemCount === 'number'

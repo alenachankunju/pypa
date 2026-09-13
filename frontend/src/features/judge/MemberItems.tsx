@@ -103,7 +103,7 @@ export function MemberItems() {
             <button
               key={item.itemId}
               type="button"
-              className="card row-between"
+              className="card is-interactive row-between"
               style={{
                 width: '100%',
                 textAlign: 'left',

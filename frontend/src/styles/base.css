@@ -141,8 +141,14 @@ h4 {
   flex-direction: column;
   gap: var(--space-4);
 }
-.stack-sm { gap: var(--space-2); }
-.stack-lg { gap: var(--space-6); }
+/* Every call site in the app uses these two standalone (e.g. className="card
+   stack-sm"), not as a gap-only modifier layered on .stack — so each needs
+   its own display/flex-direction, not just a gap override, or it silently
+   renders as an unstacked, gap-less block (children with inline elements,
+   like a <span> label next to a <span> description, then ran together on
+   one line instead of stacking, which is how this was found). */
+.stack-sm { display: flex; flex-direction: column; gap: var(--space-2); }
+.stack-lg { display: flex; flex-direction: column; gap: var(--space-6); }
 
 .row {
   display: flex;
@@ -173,9 +179,23 @@ h4 {
   display: grid;
   gap: var(--space-4);
 }
-.grid-2 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-.grid-3 { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
-.grid-4 { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+
+/* Fixed column counts rather than auto-fit: a card grid whose count doesn't
+   divide evenly (e.g. 6 report cards at 3-up) used to leave an orphaned
+   item alone on its own row once the viewport was wide enough to fit one
+   more column than the content has full rows for. Fixed counts always wrap
+   to full rows; the breakpoints below still collapse for mobile. */
+.grid-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+@media (max-width: 1023px) {
+  .grid-3, .grid-4 { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 639px) {
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+}
 
 /* --- Typography helpers --------------------------------------------------- */
 
@@ -202,8 +222,11 @@ h4 {
   color: var(--text-muted);
 }
 
+/* Sans, not serif — the dashboard/chrome voice. The serif is reserved for
+   ceremonial numbers (.chest-number, .participant-name, .mark-value*) and the
+   login/certificate brand marks, not page furniture. */
 .page-title {
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   font-size: var(--text-xl);
   font-weight: var(--weight-semibold);
 }
@@ -341,6 +364,57 @@ h4 {
 
 .card-flush { padding: 0; overflow: hidden; }
 
+/* For a card that is really a link/button in disguise (a dashboard summary
+   card, say) — not applied to cards that just hold static content, since a
+   hover-lift on something inert reads as a broken affordance. */
+.card.is-interactive {
+  transition: transform var(--transition-base), box-shadow var(--transition-base);
+}
+.card.is-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-raised-sm);
+}
+.card.is-interactive:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
+
+/* A soft, low-opacity echo of the login screen's indigo gradient — for the
+   one place per screen that should read as a hero rather than another box in
+   a stack of identical cards. */
+.hero-panel {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  background:
+    radial-gradient(circle at 100% 0%, var(--accent-subtle), transparent 55%),
+    var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-raised-sm);
+}
+
+/* The elevated treatment for the screens that matter most on stage — the
+   judge's current-participant card and the mark confirmation. Bigger radius,
+   two-layer shadow, and a thin gradient hairline along the top edge instead
+   of a flat border, so it reads as the one important surface on the screen. */
+.stage-card {
+  position: relative;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-raised-md);
+  border: 1px solid var(--border-subtle);
+}
+.stage-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: var(--space-6);
+  right: var(--space-6);
+  height: 3px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(90deg, transparent, var(--accent), var(--gold-500), transparent);
+}
+
 .card-header {
   display: flex;
   align-items: center;
@@ -351,7 +425,7 @@ h4 {
 }
 
 .card-title {
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   font-size: var(--text-lg);
   font-weight: var(--weight-semibold);
 }
@@ -366,8 +440,20 @@ h4 {
   box-shadow: var(--shadow-sm);
 }
 
+/* A plain colored icon directly above the value — no background tile —
+   rather than the tinted-tile treatment .page-header-icon uses elsewhere.
+   The color is one of six fixed category hues (StatCard's `color` prop), so
+   "Churches" always reads blue and "Items" always reads amber, wherever the
+   card appears — a second, wordless cue alongside the label, never the only
+   one. */
+.stat-card-icon {
+  font-size: 1.35rem;
+  line-height: 1;
+  margin-bottom: var(--space-2);
+}
+
 .stat-value {
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   font-size: var(--text-2xl);
   font-weight: var(--weight-bold);
   line-height: 1.1;
@@ -423,7 +509,12 @@ h4 {
 .select:disabled,
 .textarea:disabled {
   background: var(--surface-sunken);
-  color: var(--text-muted);
+  /* Locked config fields (ScoringConfig) still show a real value the admin
+     needs to read, not a placeholder — --text-muted read as near-invisible
+     against the sunken background, so a disabled field disappeared exactly
+     when its content mattered most. --text-secondary keeps it legible while
+     the sunken background still signals "not editable." */
+  color: var(--text-secondary);
   cursor: not-allowed;
 }
 
@@ -794,7 +885,26 @@ h4 {
   font-weight: var(--weight-semibold);
 }
 
-.bottom-nav-icon { font-size: 1.35rem; line-height: 1; }
+.bottom-nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 26px;
+  font-size: 1.35rem;
+  line-height: 1;
+  border-radius: var(--radius-full);
+  transition: background var(--motion-spring), transform var(--motion-spring);
+}
+
+/* The active tab gets a filled pill behind its icon and a slight pop, the
+   way a native tab bar highlights the current destination — not just a
+   text-color change. */
+.bottom-nav-item[aria-current='page'] .bottom-nav-icon {
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+  transform: scale(1.08);
+}
 
 /* FSD 10.2: "The bar shows a badge on My Marks when offline submissions are
    queued." */
@@ -832,6 +942,33 @@ h4 {
   border-bottom: 1px solid var(--border-subtle);
 }
 
+/* Translucent app bar — the header/bottom-nav read as floating over content
+   rather than a solid strip, the way a native app's chrome does. Falls back
+   to the opaque surface automatically where backdrop-filter isn't supported. */
+.app-header.is-glass,
+.bottom-nav.is-glass {
+  background: var(--glass-bg);
+  border-color: var(--glass-border);
+}
+
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .app-header.is-glass,
+  .bottom-nav.is-glass {
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+  }
+}
+
+/* The offline warning tint always wins over the glass treatment — a judge
+   needs to notice "offline" at a glance, not admire the blur. Three-class
+   specificity guarantees this regardless of where each rule sits in the file. */
+.bottom-nav.is-offline.is-glass {
+  background: var(--warning-subtle);
+  border-color: var(--warning);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 /* JDG-01-04: "The judge's name and the active session name are visible at all
    times in the header, so a judge can immediately confirm they are in the right
    place." */
@@ -849,6 +986,98 @@ h4 {
   font-size: var(--text-xs);
   color: var(--text-secondary);
 }
+
+/* --- Global search (admin header) ------------------------------------ */
+
+.global-search {
+  position: relative;
+  flex: 1 1 auto;
+  max-width: 420px;
+}
+
+/* Each admin list screen already has its own search field — on a narrow
+   admin viewport the header keeps just the identity block, same as before. */
+@media (max-width: 639px) {
+  .global-search { display: none; }
+}
+
+.global-search-icon {
+  position: absolute;
+  left: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.global-search-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 var(--space-3) 0 calc(var(--space-3) * 2 + 1em);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  background: var(--surface-sunken);
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.global-search-input:focus {
+  outline: none;
+  background: var(--surface-card);
+  border-color: var(--border-focus);
+  box-shadow: var(--shadow-focus);
+}
+
+.global-search-panel {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  right: 0;
+  max-height: 360px;
+  overflow-y: auto;
+  padding: var(--space-2);
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-raised-md);
+  z-index: var(--z-overlay);
+}
+
+.global-search-empty {
+  padding: var(--space-4) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.global-search-group + .global-search-group { margin-top: var(--space-2); }
+
+.global-search-group-label {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.global-search-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--touch-target);
+  padding: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  text-align: left;
+  border-radius: var(--radius-md);
+}
+
+.global-search-row:hover { background: var(--surface-hover); }
+.global-search-row span { margin-left: auto; }
 
 .judge-main {
   padding: var(--space-4);
@@ -923,12 +1152,12 @@ h4 {
   font-family: var(--font-display);
   font-weight: 700;
   color: #fff;
-  background: linear-gradient(155deg, var(--indigo-500), var(--indigo-700));
+  background: linear-gradient(155deg, var(--blue-500), var(--blue-700));
   border-radius: var(--radius-md);
 }
 
 .sidebar-brand-name {
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   font-size: var(--text-base);
   font-weight: 600;
 }
@@ -996,11 +1225,20 @@ h4 {
   background: var(--surface-card);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
+  /* A raised-key feel — pressing it should look like pressing a physical
+     button, not just a color change, since this is the control judges tap
+     dozens of times a session. */
+  box-shadow: var(--shadow-raised-sm);
+  transition: box-shadow var(--transition-fast), transform var(--transition-fast), background var(--transition-fast);
   user-select: none;
 }
 
 .stepper-btn:hover:not(:disabled) { background: var(--surface-hover); }
-.stepper-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.stepper-btn:active:not(:disabled) {
+  box-shadow: var(--shadow-sm);
+  transform: translateY(1px);
+}
+.stepper-btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
 
 .stepper-value {
   display: flex;
@@ -1123,70 +1361,55 @@ h4 {
   display: none;
   flex: 1 1 46%;
   flex-direction: column;
+  align-items: center;
   justify-content: center;
-  padding: var(--space-16);
-  color: #fff;
-  position: relative;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 15% 15%, rgb(255 255 255 / 0.08), transparent 45%),
-    linear-gradient(155deg, var(--indigo-700) 0%, var(--ink-900) 100%);
+  gap: var(--space-6);
+  padding: var(--space-10);
+  text-align: center;
+  background: linear-gradient(180deg, var(--blue-100) 0%, var(--surface-page) 75%);
 }
 
-.login-brand::after {
-  /* A faint ring, echoing the certificate border motif — atmosphere, not a
-     competing shape, so it sits mostly off-canvas. */
-  content: '';
-  position: absolute;
-  right: -180px;
-  bottom: -180px;
-  width: 460px;
-  height: 460px;
-  border: 1px solid rgb(255 255 255 / 0.12);
-  border-radius: 50%;
+.login-brand-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 
 .login-brand-mark {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: center;
-  width: 64px;
-  height: 64px;
-  margin-bottom: var(--space-6);
-  font-family: var(--font-display);
-  font-size: 1.75rem;
+  width: 52px;
+  height: 52px;
+  font-family: var(--font-sans);
+  font-size: 1.15rem;
   font-weight: 700;
   color: #fff;
-  background: rgb(255 255 255 / 0.08);
-  border: 1px solid rgb(255 255 255 / 0.25);
+  background: var(--accent);
   border-radius: var(--radius-lg);
 }
 
-.login-brand-title {
-  max-width: 14ch;
-  font-size: var(--text-3xl);
+.login-brand-wordmark {
+  font-size: var(--text-lg);
   font-weight: 600;
-  line-height: var(--leading-tight);
+  color: var(--text-primary);
+}
+
+.login-illustration {
+  width: min(400px, 100%);
+  height: auto;
 }
 
 .login-brand-tagline {
-  max-width: 34ch;
-  margin-top: var(--space-3);
-  font-size: var(--text-lg);
-  color: rgb(255 255 255 / 0.78);
-}
-
-.login-brand-rule {
-  width: 64px;
-  height: 3px;
-  margin: var(--space-8) 0 var(--space-6);
-  background: var(--gold-500);
-  border-radius: var(--radius-full);
+  max-width: 36ch;
+  font-size: var(--text-base);
+  color: var(--text-secondary);
 }
 
 .login-brand-footnote {
-  font-size: var(--text-sm);
-  color: rgb(255 255 255 / 0.6);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
 }
 
 .login-panel {
@@ -1200,6 +1423,20 @@ h4 {
 
 .login-form-wrap { width: 100%; max-width: 380px; }
 
+/* On a wide viewport the form reads as a floating panel on the page rather
+   than bare fields — a small thing that separates a "website" from a form
+   dropped on a blank background. Left alone below the breakpoint, where the
+   full-bleed form is the right mobile pattern. */
+@media (min-width: 640px) {
+  .login-form-wrap {
+    padding: var(--space-8);
+    background: var(--surface-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-raised-md);
+  }
+}
+
 .login-form-header { margin-bottom: var(--space-6); text-align: center; }
 
 .login-form-header .login-brand-mark-compact {
@@ -1208,6 +1445,23 @@ h4 {
   background: var(--accent);
   border-color: transparent;
 }
+
+/* Filled, fully-rounded fields and button on this one screen — the rest of
+   the app keeps the bordered rectangular .input everywhere else (changing
+   that globally would touch every form in the app for no reason here). */
+.login-form .input {
+  background: var(--surface-sunken);
+  border-color: transparent;
+  border-radius: var(--radius-full);
+  padding-left: var(--space-4);
+}
+
+.login-form .input:focus {
+  background: var(--surface-card);
+  border-color: var(--border-focus);
+}
+
+.login-submit { border-radius: var(--radius-full); }
 
 @media (min-width: 900px) {
   .login-brand { display: flex; }

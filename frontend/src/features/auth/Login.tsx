@@ -10,6 +10,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
 import { ApiError } from '../../lib/api';
 import { Banner } from '../../components/ui';
+import loginIllustration from '../../assets/login-illustration.png';
 
 export function Login() {
   const { login } = useAuth();
@@ -61,10 +62,12 @@ export function Login() {
           media query), so mobile gets the form full-screen rather than a
           squeezed-down version of both halves. */}
       <div className="login-brand" aria-hidden="true">
-        <div className="login-brand-mark">P</div>
-        <h1 className="login-brand-title">PYPA Marking System</h1>
+        <div className="login-brand-top">
+          <div className="login-brand-mark">P</div>
+          <span className="login-brand-wordmark">PYPA Marking System</span>
+        </div>
+        <img src={loginIllustration} alt="" className="login-illustration" />
         <p className="login-brand-tagline">Competition registration, live judging and results</p>
-        <div className="login-brand-rule" />
         <p className="login-brand-footnote">Pentecostal Youth &amp; Pathfinders Association</p>
       </div>
 
@@ -78,7 +81,7 @@ export function Login() {
             <p className="text-sm muted">Enter your username and password to continue.</p>
           </div>
 
-          <form className="stack" onSubmit={handleSubmit} noValidate>
+          <form className="stack login-form" onSubmit={handleSubmit} noValidate>
             <div className="field">
               <label className="label" htmlFor="username">
                 Username
@@ -112,7 +115,7 @@ export function Login() {
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm"
-                  style={{ position: 'absolute', right: 4 }}
+                  style={{ position: 'absolute', right: 8 }}
                   onClick={() => setShowPassword((s) => !s)}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
@@ -123,7 +126,7 @@ export function Login() {
 
             {error && <Banner tone="danger">{error}</Banner>}
 
-            <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={busy}>
+            <button type="submit" className="btn btn-primary btn-lg btn-block login-submit" disabled={busy}>
               {busy ? 'Signing in…' : 'Sign in'}
             </button>
           </form>

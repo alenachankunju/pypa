@@ -19,6 +19,7 @@ import { ApiError, api, deviceId } from '../../lib/api';
 import { enqueue } from '../../lib/offlineQueue';
 import { useOnline } from '../../hooks/useOnline';
 import { Banner, ErrorState, LoadingState, Sheet } from '../../components/ui';
+import { Icon } from '../../components/Icon';
 import { useJudgeSession } from './JudgeSession';
 
 export function MarkEntry() {
@@ -196,12 +197,8 @@ export function MarkEntry() {
   if (success !== null) {
     return (
       <div className="state">
-        <div
-          className="state-icon"
-          style={{ color: 'var(--success)' }}
-          aria-hidden="true"
-        >
-          ✓
+        <div className="state-icon" style={{ color: 'var(--success)' }}>
+          <Icon name="check-circle" />
         </div>
         <p className="state-title">Mark recorded</p>
         <div className="mark-value-hero">{success.toFixed(decimalPlaces)}</div>
@@ -220,7 +217,7 @@ export function MarkEntry() {
   return (
     <div className="stack-lg">
       {/* JDG-05-01: restate chest number, name, church, item and the maximum. */}
-      <div className="card stack-sm">
+      <div className="card stage-card stack-sm">
         <div className="row-between">
           <span className="eyebrow">{item.name}</span>
           <span className="badge badge-neutral">Max {maxMark}</span>

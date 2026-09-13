@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError, api } from '../../lib/api';
 import { AlertDialog, BulkImportSheet, ConfirmDialog, ErrorState, Field, LoadingState, PageHeader, Sheet, StatusBadge } from '../../components/ui';
+import { Icon } from '../../components/Icon';
 import { useAuth } from '../../lib/auth';
 
 interface ItemRow {
@@ -187,7 +188,7 @@ export function Items() {
   return (
     <div className="stack-lg">
       <PageHeader
-        icon="♪"
+        icon={<Icon name="star" />}
         title="Items"
         actions={
           can('MANAGE_ITEMS') && (

@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { AlertDialog, Banner, ErrorState, Field, LoadingState, PageHeader } from '../../components/ui';
+import { Icon } from '../../components/Icon';
 import { useAuth } from '../../lib/auth';
 
 interface GradeBand {
@@ -158,7 +159,7 @@ export function ScoringConfig() {
 
   return (
     <div className="stack-lg">
-      <PageHeader icon="⚙" title="Scoring configuration" />
+      <PageHeader icon={<Icon name="sliders" />} title="Scoring configuration" />
 
       {config.locked && (
         <Banner tone="warning" title="Configuration is locked">

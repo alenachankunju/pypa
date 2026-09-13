@@ -7,6 +7,7 @@ import { useAuth } from '../../lib/auth';
 import { useOnline } from '../../hooks/useOnline';
 import { useQueue } from '../../hooks/useQueue';
 import { useJudgeSession } from './JudgeSession';
+import { Icon } from '../../components/Icon';
 
 export function JudgeShell() {
   const { user } = useAuth();
@@ -20,13 +21,13 @@ export function JudgeShell() {
           saved and sent automatically.'" */}
       {!online && (
         <div className="offline-banner" role="status">
-          <span aria-hidden="true">⚡</span>
+          <Icon name="zap" />
           Offline — marks will be saved and sent automatically.
         </div>
       )}
 
       {/* JDG-01-04: judge name and active session always visible. */}
-      <header className="app-header">
+      <header className="app-header is-glass">
         <div className="row" style={{ gap: 'var(--space-2)', minWidth: 0 }}>
           <span className="sidebar-brand-mark" aria-hidden="true" style={{ width: 28, height: 28, fontSize: '0.9rem' }}>
             P
@@ -45,17 +46,23 @@ export function JudgeShell() {
         <Outlet />
       </main>
 
-      <nav className={`bottom-nav${!online ? ' is-offline' : ''}`} aria-label="Judge navigation">
+      <nav className={`bottom-nav is-glass${!online ? ' is-offline' : ''}`} aria-label="Judge navigation">
         <NavLink to="/judge" end className="bottom-nav-item">
-          <span className="bottom-nav-icon" aria-hidden="true">▶</span>
+          <span className="bottom-nav-icon">
+            <Icon name="play" />
+          </span>
           Now
         </NavLink>
         <NavLink to="/judge/search" className="bottom-nav-item">
-          <span className="bottom-nav-icon" aria-hidden="true">🔍</span>
+          <span className="bottom-nav-icon">
+            <Icon name="search" />
+          </span>
           Search
         </NavLink>
         <NavLink to="/judge/my-marks" className="bottom-nav-item" style={{ position: 'relative' }}>
-          <span className="bottom-nav-icon" aria-hidden="true">✓</span>
+          <span className="bottom-nav-icon">
+            <Icon name="check-circle" />
+          </span>
           My Marks
           {depth > 0 && (
             <span className="bottom-nav-badge" aria-label={`${depth} marks waiting to send`}>
@@ -64,7 +71,9 @@ export function JudgeShell() {
           )}
         </NavLink>
         <NavLink to="/judge/profile" className="bottom-nav-item">
-          <span className="bottom-nav-icon" aria-hidden="true">☺</span>
+          <span className="bottom-nav-icon">
+            <Icon name="user" />
+          </span>
           Profile
         </NavLink>
       </nav>

@@ -8,6 +8,7 @@
  */
 import { formatDateTime } from '../../lib/format';
 import { EmptyState } from '../../components/ui';
+import { Icon } from '../../components/Icon';
 import { useJudgeSession } from './JudgeSession';
 
 export function SessionPicker() {
@@ -16,7 +17,7 @@ export function SessionPicker() {
   if (!sessions || (sessions.open.length === 0 && sessions.upcoming.length === 0)) {
     return (
       <EmptyState
-        icon="⏳"
+        icon={<Icon name="clock" />}
         title="No active judging session assigned"
         body="You have not been assigned to any session yet. Check with your administrator or coordinator."
       />
@@ -27,7 +28,7 @@ export function SessionPicker() {
     return (
       <div className="stack">
         <EmptyState
-          icon="⏳"
+          icon={<Icon name="clock" />}
           title="No active judging session assigned"
           body="Your sessions have not been opened yet. They will appear here as soon as they are."
         />
@@ -44,7 +45,7 @@ export function SessionPicker() {
           <button
             key={s.id}
             type="button"
-            className="card row-between"
+            className="card is-interactive row-between"
             style={{ width: '100%', textAlign: 'left' }}
             onClick={() => setSessionId(s.id)}
           >
